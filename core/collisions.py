@@ -6,7 +6,7 @@ from random import uniform
 import pygame as pg
 
 from core import config as C
-from core.entities import Asteroid, Bullet, Ship, UFO, UFO_BULLET_OWNER, PlayerId
+from core.entities import Asteroid, Ship, UFO_BULLET_OWNER, PlayerId
 from core.utils import Vec, rand_unit_vec
 
 
@@ -73,11 +73,7 @@ class CollisionManager:
                 if bullet.owner_id <= 0:
                     continue
                 if (ufo.pos - bullet.pos).length() < (ufo.r + bullet.r):
-                    score = (
-                        C.UFO_SMALL["score"]
-                        if ufo.small
-                        else C.UFO_BIG["score"]
-                    )
+                    score = C.UFO_SMALL["score"] if ufo.small else C.UFO_BIG["score"]
                     result.score_deltas[bullet.owner_id] = (
                         result.score_deltas.get(bullet.owner_id, 0) + score
                     )
@@ -151,8 +147,7 @@ class CollisionManager:
         """
         if scorer_id is not None:
             result.score_deltas[scorer_id] = (
-                result.score_deltas.get(scorer_id, 0)
-                + C.AST_SIZES[ast.size]["score"]
+                result.score_deltas.get(scorer_id, 0) + C.AST_SIZES[ast.size]["score"]
             )
 
         split = C.AST_SIZES[ast.size]["split"]

@@ -72,8 +72,7 @@ class World:
         for _ in range(count):
             pos = rand_edge_pos()
             while any(
-                (pos - sp).length() < C.AST_MIN_SPAWN_DIST
-                for sp in ship_positions
+                (pos - sp).length() < C.AST_MIN_SPAWN_DIST for sp in ship_positions
             ):
                 pos = rand_edge_pos()
 
@@ -181,7 +180,10 @@ class World:
 
     def _handle_collisions(self) -> None:
         result = self._collision_mgr.resolve(
-            self.ships, self.bullets, self.asteroids, self.ufos,
+            self.ships,
+            self.bullets,
+            self.asteroids,
+            self.ufos,
         )
 
         self.events.extend(result.events)
