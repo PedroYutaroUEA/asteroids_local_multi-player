@@ -11,8 +11,8 @@ import pygame as pg
 
 from core import config as C
 from core.scene import SceneState
-from client.audio import load_sounds
-from client.audio_manager import AudioManager
+from client.audio.pack import load_sounds
+from client.audio.manager import AudioManager
 from client.controls import InputMapper
 from client.renderer import Renderer
 from core.world import World
