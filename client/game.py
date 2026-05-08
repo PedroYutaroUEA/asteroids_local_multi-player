@@ -1,6 +1,5 @@
 """Game loop and scenes (menu, play, game over).
 
-- InputMapper converts keyboard input into PlayerCommand.
 - World updates the simulation and generates events (strings) for Game.
 - Game handles audio and screen transitions (low coupling).
 """
@@ -99,7 +98,12 @@ class Game:
             self.scene = SceneState.GAME_OVER
             return
 
-        any_thrust = any(c.thrust for c in commands.values())
+        any_thrust = any(
+            cmd.thrust
+            and self.world.ships.get(pid, None)
+            and self.world.ships[pid].alive()
+            for pid, cmd in commands.items()
+        )
         self.audio.update_thrust(any_thrust)
         self.audio.update_ufo_siren(list(self.world.ufos))
         self.audio.play_events(self.world.events)
