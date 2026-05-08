@@ -86,31 +86,39 @@ class World:
         )
         self.events.extend(result.events)
 
-        for pid, delta in result.score_deltas.items():
-            if pid in self.scores:
-                self.scores[pid] += delta
+        # Aplica ganhos de pontos (incluindo abates PVP)
+        for player_id, delta in result.score_deltas.items():
+            if player_id in self.scores:
+                self.scores[player_id] += delta
 
+        # spawn de asteroids fragmentados
         for pos, vel, size in result.asteroids_to_spawn:
             self.spawn_asteroid(pos, vel, size)
 
-        for pid in result.ship_deaths:
-            ship = self.ships.get(pid)
+        # Processa mortes (usa set para não matar a mesma nave duas vezes no mesmo frame)
+        for player_id in set(result.ship_deaths):
+            ship = self.ships.get(player_id)
             if ship:
                 self._ship_die(ship)
 
     def _ship_die(self, ship: Ship) -> None:
         pid = ship.player_id
         self.lives[pid] -= 1
-        self.events.append("ship_explosion")
 
         if self.lives[pid] > 0:
             ship.pos.xy = (C.WIDTH / 2, C.HEIGHT / 2)
             ship.vel.xy = (0, 0)
+            ship.angle = -90.0
             ship.invuln = float(C.SAFE_SPAWN_TIME)
         else:
-            ship.kill()  # Remove do jogo
+            # Jogador eliminado da partida atual
+            ship.kill()
+            if pid in self.ships:
+                # Mantemos a referência no dict para o Score aparecer na HUD,
+                # mas a entidade física sumiu.
+                pass
 
-        if all(v <= 0 for v in self.lives.values()):
+        if all(life <= 0 for life in self.lives.values()):
             self.game_over = True
 
     # Métodos _update_ufos, _update_timers, etc permanecem como os enviados

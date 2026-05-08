@@ -70,21 +70,27 @@ class Renderer:
         )
         self._draw_text(
             self.font,
-            "Press any key",
+            "Press any key to start.",
             self.config.WIDTH // 2 - 170,
             350,
+        )
+        self._draw_text(
+            self.font,
+            "(or press 'ESC' to exit)",
+            self.config.WIDTH // 2 - 175,
+            375,
         )
 
     def draw_game_over(self) -> None:
         self._draw_text(
             self.big,
-            "GAME OVER",
+            "FIM DE JOGO!",
             self.config.WIDTH // 2 - 170,
             260,
         )
         self._draw_text(
             self.font,
-            "Press any key",
+            "Press any key to start.",
             self.config.WIDTH // 2 - 170,
             340,
         )
@@ -101,9 +107,12 @@ class Renderer:
 
     def _draw_bullet(self, bullet: Bullet) -> None:
         center = (int(bullet.pos.x), int(bullet.pos.y))
-        color = C.PLAYER_COLORS.get(bullet.owner_id, self.config.WHITE)
-        if color not in tuple(C.PLAYER_COLORS):
-            color = self.config.WHITE
+        color = (
+            C.PLAYER_COLORS.get(bullet.owner_id, self.config.WHITE)
+            if bullet.owner_id > 0
+            else self.config.WHITE
+        )
+
         pg.draw.circle(
             self.screen,
             color,
