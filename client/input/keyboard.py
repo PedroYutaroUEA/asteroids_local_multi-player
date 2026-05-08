@@ -23,6 +23,8 @@ class KeyboardDevice(InputDevice):
 
         # 1. Processa inputs contínuos (Polling)
         for key_code, action in self.key_map.items():
+            if not isinstance(key_code, int):
+                continue
             if action not in self.trigger_states:
                 cmd_data[action] = bool(pressed[key_code])
 

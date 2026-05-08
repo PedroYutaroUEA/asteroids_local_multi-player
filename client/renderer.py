@@ -39,19 +39,27 @@ class Renderer:
             if drawer is not None:
                 drawer(sprite)
 
-    def draw_hud(
-        self,
-        score: int,
-        lives: int,
-        wave: int,
-        state: SceneState,
-    ) -> None:
+    def draw_hud(self, scores: dict, lives: dict, wave: int, state: SceneState) -> None:
         if state != SceneState.PLAY:
             return
 
-        text = f"SCORE {score:06d}   LIVES {lives}   WAVE {wave}"
-        label = self.font.render(text, True, self.config.WHITE)
-        self.screen.blit(label, (10, 10))
+        # Wave no centro superior
+        wave_label = self.font.render(f"WAVE {wave}", True, self.config.WHITE)
+        self.screen.blit(wave_label, (C.WIDTH // 2 - wave_label.get_width() // 2, 10))
+
+        # Estatísticas por jogador nos cantos
+        positions = {
+            1: (10, 10),
+            2: (C.WIDTH - 150, 10),
+            3: (10, C.HEIGHT - 30),
+            4: (C.WIDTH - 150, C.HEIGHT - 30),
+        }
+        for pid in scores.keys():
+            pos = positions[pid]
+            color = C.PLAYER_COLORS[pid]
+            text = f"P{pid} {scores[pid]:05d} L:{lives[pid]}"
+            label = self.font.render(text, True, color)
+            self.screen.blit(label, pos)
 
     def draw_menu(self) -> None:
         self._draw_text(
@@ -93,9 +101,12 @@ class Renderer:
 
     def _draw_bullet(self, bullet: Bullet) -> None:
         center = (int(bullet.pos.x), int(bullet.pos.y))
+        color = C.PLAYER_COLORS.get(bullet.owner_id, self.config.WHITE)
+        if color not in tuple(C.PLAYER_COLORS):
+            color = self.config.WHITE
         pg.draw.circle(
             self.screen,
-            self.config.WHITE,
+            color,
             center,
             bullet.r,
             width=1,
@@ -116,13 +127,14 @@ class Renderer:
             (int(p2.x), int(p2.y)),
             (int(p3.x), int(p3.y)),
         ]
-        pg.draw.polygon(self.screen, self.config.WHITE, points, width=1)
+        color = C.PLAYER_COLORS.get(ship.player_id, self.config.WHITE)
+        pg.draw.polygon(self.screen, color, points, width=1)
 
         if ship.invuln > 0.0 and int(ship.invuln * 10) % 2 == 0:
             center = (int(ship.pos.x), int(ship.pos.y))
             pg.draw.circle(
                 self.screen,
-                self.config.WHITE,
+                color,
                 center,
                 ship.r + 6,
                 width=1,

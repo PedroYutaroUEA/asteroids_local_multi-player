@@ -6,8 +6,15 @@ WIDTH = 960
 HEIGHT = 720
 FPS = 60
 
-MAX_PLAYERS = 8
-LOCAL_PLAYER_ID = 1
+PlayerId = int
+LOCAL_PLAYER_ID: PlayerId = 1
+PLAYER_COLORS: dict[PlayerId, tuple[int]] = {
+    1: (255, 255, 255),  # Branco
+    2: (0, 255, 100),  # Verde
+    3: (100, 200, 255),  # Ciano
+    4: (255, 200, 0),  # Amarelo
+}
+MAX_PLAYERS = 4
 
 START_LIVES = 3
 SAFE_SPAWN_TIME = 2.0

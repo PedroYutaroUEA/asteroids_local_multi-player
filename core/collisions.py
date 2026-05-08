@@ -6,7 +6,7 @@ from random import uniform
 import pygame as pg
 
 from core import config as C
-from core.entities import Asteroid, Ship, UFO_BULLET_OWNER, PlayerId
+from core.entities import Asteroid, Ship, UFO_BULLET_OWNER
 from core.utils import Vec, rand_unit_vec
 
 
@@ -15,8 +15,8 @@ class CollisionResult:
     """Outcome of a single collision resolution pass."""
 
     events: list[str] = field(default_factory=list)
-    score_deltas: dict[PlayerId, int] = field(default_factory=dict)
-    ship_deaths: list[PlayerId] = field(default_factory=list)
+    score_deltas: dict[C.PlayerId, int] = field(default_factory=dict)
+    ship_deaths: list[C.PlayerId] = field(default_factory=list)
     asteroids_to_spawn: list[tuple[Vec, Vec, str]] = field(default_factory=list)
 
 
@@ -25,7 +25,7 @@ class CollisionManager:
 
     def resolve(
         self,
-        ships: dict[PlayerId, Ship],
+        ships: dict[C.PlayerId, Ship],
         bullets: pg.sprite.Group,
         asteroids: pg.sprite.Group,
         ufos: pg.sprite.Group,
@@ -106,7 +106,7 @@ class CollisionManager:
 
     def _ship_vs_asteroids(
         self,
-        ships: dict[PlayerId, Ship],
+        ships: dict[C.PlayerId, Ship],
         asteroids: pg.sprite.Group,
         result: CollisionResult,
     ) -> None:
@@ -120,7 +120,7 @@ class CollisionManager:
 
     def _ship_vs_ufo_bullets(
         self,
-        ships: dict[PlayerId, Ship],
+        ships: dict[C.PlayerId, Ship],
         bullets: pg.sprite.Group,
         result: CollisionResult,
     ) -> None:
@@ -139,7 +139,7 @@ class CollisionManager:
         self,
         ast: Asteroid,
         result: CollisionResult,
-        scorer_id: PlayerId | None = None,
+        scorer_id: C.PlayerId | None = None,
     ) -> None:
         """Split or destroy an asteroid.
 

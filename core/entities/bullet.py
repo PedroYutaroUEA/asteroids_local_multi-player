@@ -4,15 +4,13 @@ from core import config as C
 from core.utils import Vec, wrap_pos
 from .base import Entity
 
-PlayerId = int
-
 
 class Bullet(Entity):
     """Generic projectile fired by ships or UFOs."""
 
     def __init__(
         self,
-        owner_id: PlayerId,
+        owner_id: C.PlayerId,
         pos: Vec,
         vel: Vec,
         ttl: float = C.BULLET_TTL,

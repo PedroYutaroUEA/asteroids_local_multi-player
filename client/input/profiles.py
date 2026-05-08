@@ -1,25 +1,28 @@
 import pygame as pg
 
 # Mapeamento Teclado
-KEYBOARD_P1 = {
-    pg.K_UP: "thrust",
-    pg.K_LEFT: "rotate_left",
-    pg.K_RIGHT: "rotate_right",
-    pg.K_SPACE: "shoot",
-    pg.K_LSHIFT: "hyperspace",
-}
-
-KEYBOARD_P2 = {
-    pg.K_w: "thrust",
-    pg.K_a: "rotate_left",
-    pg.K_d: "rotate_right",
-    pg.K_q: "shoot",
-    pg.K_e: "hyperspace",
+KEYBOARD_PROFILES = {
+    "P1": {
+        pg.K_UP: "thrust",
+        pg.K_LEFT: "rotate_left",
+        pg.K_RIGHT: "rotate_right",
+        pg.K_SPACE: "shoot",
+        pg.K_LSHIFT: "hyperspace",
+        "join_key": pg.K_1,
+    },
+    "P2": {
+        pg.K_w: "thrust",
+        pg.K_a: "rotate_left",
+        pg.K_d: "rotate_right",
+        pg.K_q: "shoot",
+        pg.K_e: "hyperspace",
+        "join_key": pg.K_2,
+    },
 }
 
 # Mapeamento Joysticks (Normalizado)
 # Chaves: 'axes' para polling, 'buttons' para eventos
-JOYSTICK_XBOX_STYLE = {
+JOYSTICK_XBOX = {
     "axes": {
         0: {"neg": "rotate_left", "pos": "rotate_right"},  # Eixo X
         5: {"pos": "thrust"},  # Gatilho RT

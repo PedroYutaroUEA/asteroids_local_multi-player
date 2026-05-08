@@ -9,11 +9,12 @@ import sys
 
 import pygame as pg
 
+from client.input.manager import InputManager
+from client.loby import Lobby
 from core import config as C
 from core.scene import SceneState
 from client.audio.pack import load_sounds
 from client.audio.manager import AudioManager
-from client.controls import InputMapper
 from client.renderer import Renderer
 from core.world import World
 
@@ -29,7 +30,7 @@ class Game:
         pg.mixer.init()
 
         self.screen = pg.display.set_mode((C.WIDTH, C.HEIGHT))
-        pg.display.set_caption("Asteroids")
+        pg.display.set_caption("Asteroids Multiplayer Local")
 
         self.clock = pg.time.Clock()
         self.running = True
@@ -42,9 +43,10 @@ class Game:
             fonts={"font": self.font, "big": self.big},
         )
 
+        self.input_manager = InputManager()
+        self.lobby = Lobby(self.input_manager)
+        self.world = None
         self.scene = SceneState.MENU
-        self.world = World()
-        self.input_mapper = InputMapper()
 
         self.sounds = load_sounds(C.SOUND_PATH)
         self.audio = AudioManager(self.sounds)
@@ -59,35 +61,37 @@ class Game:
         pg.quit()
 
     def _handle_events(self) -> None:
-        for event in pg.event.get():
-            if event.type == pg.QUIT:
-                self._quit()
-
-            if event.type == pg.KEYDOWN and event.key == pg.K_ESCAPE:
+        events = pg.event.get()
+        for event in events:
+            if event.type == pg.QUIT or (
+                event.type == pg.KEYDOWN and event.key == pg.K_ESCAPE
+            ):
                 self._quit()
 
             if self.scene == SceneState.MENU:
                 if event.type == pg.KEYDOWN:
-                    self.scene = SceneState.PLAY
-                continue
+                    self.scene = SceneState.LOBBY
 
-            if self.scene == SceneState.GAME_OVER:
+            elif self.scene == SceneState.LOBBY:
+                # O Lobby decide quando o jogo começa
+                if self.lobby.update([event]):
+                    # INJEÇÃO DE DEPENDÊNCIA: Criamos o mundo com os IDs reais
+                    self.world = World(self.input_manager.get_player_ids())
+                    self.scene = SceneState.PLAY
+
+            elif self.scene == SceneState.GAME_OVER:
                 if event.type == pg.KEYDOWN:
                     self.world.reset()
-                    self.scene = SceneState.PLAY
-                continue
+                    self.scene = SceneState.LOBBY
 
-            if self.scene == SceneState.PLAY:
-                self.input_mapper.handle_event(event)
+            elif self.scene == SceneState.PLAY:
+                self.input_manager.handle_gameplay_events([event])
 
     def _update(self, dt: float) -> None:
         if self.scene != SceneState.PLAY:
             return
 
-        keys = pg.key.get_pressed()
-        cmd = self.input_mapper.build_command(keys)
-        commands = {C.LOCAL_PLAYER_ID: cmd}
-
+        commands = self.input_manager.get_all_commands()
         self.world.update(dt, commands)
 
         if self.world.game_over:
@@ -95,31 +99,28 @@ class Game:
             self.scene = SceneState.GAME_OVER
             return
 
-        self.audio.update_thrust(cmd.thrust)
+        any_thrust = any(c.thrust for c in commands.values())
+        self.audio.update_thrust(any_thrust)
         self.audio.update_ufo_siren(list(self.world.ufos))
         self.audio.play_events(self.world.events)
 
     def _draw(self) -> None:
         self.renderer.clear()
-
         if self.scene == SceneState.MENU:
             self.renderer.draw_menu()
-            pg.display.flip()
-            return
-
-        if self.scene == SceneState.GAME_OVER:
+        elif self.scene == SceneState.LOBBY:
+            self.lobby.draw(self.screen, self.font, self.big)
+        elif self.scene == SceneState.GAME_OVER:
             self.renderer.draw_game_over()
-            pg.display.flip()
-            return
-
-        self.renderer.draw_world(self.world)
-        self.renderer.draw_hud(
-            self.world.scores.get(C.LOCAL_PLAYER_ID, 0),
-            self.world.lives.get(C.LOCAL_PLAYER_ID, 0),
-            self.world.wave,
-            self.scene,
-        )
+        elif self.scene == SceneState.PLAY:
+            self.renderer.draw_world(self.world)
+            self.renderer.draw_hud(
+                self.world.scores, self.lives_copy(), self.world.wave, self.scene
+            )
         pg.display.flip()
+
+    def lives_copy(self):
+        return self.world.lives if self.world else {}
 
     def _quit(self) -> None:
         self.running = False

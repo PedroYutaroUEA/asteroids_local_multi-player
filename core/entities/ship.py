@@ -8,7 +8,7 @@ from core import config as C
 from core.commands import PlayerCommand
 from core.utils import Vec, angle_to_vec, wrap_pos
 from .base import Entity
-from .bullet import Bullet, PlayerId
+from .bullet import Bullet
 
 
 class Ship(Entity):
@@ -17,7 +17,7 @@ class Ship(Entity):
     the same class can be used for local and networked players.
     """
 
-    def __init__(self, player_id: PlayerId, pos: Vec) -> None:
+    def __init__(self, player_id: C.PlayerId, pos: Vec) -> None:
         self.r = int(C.SHIP_RADIUS)
         super().__init__()
 

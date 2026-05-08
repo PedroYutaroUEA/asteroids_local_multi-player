@@ -7,3 +7,4 @@ class SceneState(Enum):
     MENU = auto()
     PLAY = auto()
     GAME_OVER = auto()
+    LOBBY = auto()
