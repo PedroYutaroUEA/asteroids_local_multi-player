@@ -13,10 +13,16 @@ from core.utils import Vec, rand_edge_pos
 class World:
     def __init__(self, player_ids: List[C.PlayerId]) -> None:
         self.active_player_ids = player_ids  # Armazena para facilitar o reset
+        self._init_state()
+
+    def _init_state(self) -> None:
+        """Inicializa (ou reinicia) todo o estado mutável da simulação."""
         self.ships: Dict[C.PlayerId, Ship] = {}
-        self.scores: Dict[C.PlayerId, int] = {pid: 0 for pid in player_ids}
-        self.lives: Dict[C.PlayerId, int] = {pid: C.START_LIVES for pid in player_ids}
-        self.power_use_count = 0  # Contador unificado conforme solicitado
+        self.scores: Dict[C.PlayerId, int] = {pid: 0 for pid in self.active_player_ids}
+        self.lives: Dict[C.PlayerId, int] = {
+            pid: C.START_LIVES for pid in self.active_player_ids
+        }
+        self.power_use_count = 0
 
         self.bullets = pg.sprite.Group()
         self.asteroids = pg.sprite.Group()
@@ -30,12 +36,12 @@ class World:
         self._collision_mgr = CollisionManager()
         self.game_over = False
 
-        for pid in player_ids:
+        for pid in self.active_player_ids:
             self.spawn_player(pid)
 
     def reset(self) -> None:
-        """Reinicia o mundo mantendo os mesmos jogadores do lobby."""
-        World(self.active_player_ids)
+        """Reinicia o mundo in-place, mantendo os mesmos jogadores do lobby."""
+        self._init_state()
 
     def spawn_player(self, player_id: C.PlayerId) -> None:
         # Posições de spawn distintas para evitar colisões no nascimento
