@@ -43,23 +43,118 @@ class Renderer:
         if state != SceneState.PLAY:
             return
 
-        # Wave no centro superior
-        wave_label = self.font.render(f"WAVE {wave}", True, self.config.WHITE)
-        self.screen.blit(wave_label, (C.WIDTH // 2 - wave_label.get_width() // 2, 10))
+        self._draw_wave_indicator(wave)
+        self._draw_player_panels(scores, lives)
 
-        # Estatísticas por jogador nos cantos
-        positions = {
-            1: (10, 10),
-            2: (C.WIDTH - 150, 10),
-            3: (10, C.HEIGHT - 30),
-            4: (C.WIDTH - 150, C.HEIGHT - 30),
-        }
-        for pid in scores.keys():
-            pos = positions[pid]
-            color = C.PLAYER_COLORS[pid]
-            text = f"P{pid} {scores[pid]:05d} L:{lives[pid]}"
-            label = self.font.render(text, True, color)
-            self.screen.blit(label, pos)
+    def _draw_wave_indicator(self, wave: int) -> None:
+        """Renderiza o indicador de wave centralizado com fundo semi-transparente."""
+        wave_text = f"WAVE  {wave}"
+        label = self.font.render(wave_text, True, self.config.WHITE)
+        lw, lh = label.get_size()
+        pad_x, pad_y = 18, 6
+        cx = C.WIDTH // 2 - (lw + pad_x * 2) // 2
+        cy = 8
+
+        bg = pg.Surface((lw + pad_x * 2, lh + pad_y * 2), pg.SRCALPHA)
+        bg.fill((255, 255, 255, 25))
+        self.screen.blit(bg, (cx, cy))
+        pg.draw.rect(
+            self.screen,
+            (180, 180, 180, 120),
+            (cx, cy, lw + pad_x * 2, lh + pad_y * 2),
+            1,
+        )
+        self.screen.blit(label, (cx + pad_x, cy + pad_y))
+
+    def _draw_player_panels(self, scores: dict, lives: dict) -> None:
+        """Renderiza um painel HUD para cada jogador, posicionado dinamicamente."""
+        pids = sorted(scores.keys())
+        n = len(pids)
+        if n == 0:
+            return
+
+        # Dimensões do painel — fixas mas proporcionais à tela
+        pw = max(160, C.WIDTH // 6)   # largura do painel
+        ph = 72                        # altura do painel
+        margin = 10                    # afastamento das bordas
+
+        # Quadrantes: sempre usa os 4 cantos, independente de quantos jogadores
+        quadrant_positions = [
+            (margin, margin),                          # top-left
+            (C.WIDTH - pw - margin, margin),           # top-right
+            (margin, C.HEIGHT - ph - margin),          # bottom-left
+            (C.WIDTH - pw - margin, C.HEIGHT - ph - margin),  # bottom-right
+        ]
+
+        for idx, pid in enumerate(pids):
+            qpos = quadrant_positions[idx % 4]
+            self._draw_single_player_panel(
+                pid,
+                qpos,
+                pw,
+                ph,
+                scores[pid],
+                lives[pid],
+            )
+
+    def _draw_single_player_panel(
+        self,
+        pid: int,
+        pos: tuple,
+        pw: int,
+        ph: int,
+        score: int,
+        life_count: int,
+    ) -> None:
+        """Desenha o painel completo de um jogador (barra de título + score + vidas)."""
+        x, y = pos
+        color = C.PLAYER_COLORS.get(pid, self.config.WHITE)
+        eliminated = life_count <= 0
+
+        # --- Fundo do painel ---
+        bg = pg.Surface((pw, ph), pg.SRCALPHA)
+        bg.fill((0, 0, 0, 160))
+        self.screen.blit(bg, (x, y))
+
+        # --- Borda ---
+        border_color = (80, 80, 80) if eliminated else color
+        pg.draw.rect(self.screen, border_color, (x, y, pw, ph), 1)
+
+        # --- Barra de título colorida ---
+        bar_h = 20
+        bar_surf = pg.Surface((pw, bar_h), pg.SRCALPHA)
+        r, g, b = color
+        bar_surf.fill((r, g, b, 60 if eliminated else 110))
+        self.screen.blit(bar_surf, (x, y))
+        name_label = self.font.render(f"PLAYER {pid}", True, color)
+        self.screen.blit(name_label, (x + 8, y + 1))
+
+        if eliminated:
+            # --- Status ELIMINATED ---
+            elim_label = self.font.render("ELIMINATED", True, (200, 60, 60))
+            ex = x + pw // 2 - elim_label.get_width() // 2
+            ey = y + bar_h + 6
+            self.screen.blit(elim_label, (ex, ey))
+        else:
+            # --- Score ---
+            score_label = self.font.render(f"{score:07d}", True, self.config.WHITE)
+            self.screen.blit(score_label, (x + 8, y + bar_h + 4))
+
+            # --- Ícones de vida (triângulos mini) ---
+            self._draw_life_icons(x + 8, y + bar_h + 28, life_count, color)
+
+    def _draw_life_icons(
+        self, x: int, y: int, count: int, color: tuple
+    ) -> None:
+        """Desenha 'count' mini-naves (triângulos) como ícones de vida."""
+        icon_w, icon_h, gap = 12, 14, 5
+        for i in range(count):
+            ix = x + i * (icon_w + gap)
+            # Triângulo apontando para cima, como uma nave vista de frente
+            tip = (ix + icon_w // 2, y)
+            left = (ix, y + icon_h)
+            right = (ix + icon_w, y + icon_h)
+            pg.draw.polygon(self.screen, color, [tip, left, right], 1)
 
     def draw_menu(self) -> None:
         self._draw_text(
