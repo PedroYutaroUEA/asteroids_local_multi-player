@@ -5,6 +5,7 @@
 """
 
 import sys
+import random
 
 import pygame as pg
 
@@ -33,6 +34,7 @@ class Game:
 
         self.clock = pg.time.Clock()
         self.running = True
+        self.menu_time: float = 0.0  # acumulador para animações do menu
 
         self.font = pg.font.SysFont(C.FONT_NAME, C.FONT_SIZE_SMALL)
         self.big = pg.font.SysFont(C.FONT_NAME, C.FONT_SIZE_LARGE)
@@ -47,12 +49,21 @@ class Game:
         self.world = None
         self.scene = SceneState.MENU
 
+        # Starfield estático — seed fixa garante sempre as mesmas estrelas
+        rng = random.Random(42)
+        self.stars: list[tuple[int, int, int]] = [
+            (rng.randint(0, C.WIDTH), rng.randint(0, C.HEIGHT), rng.randint(1, 3))
+            for _ in range(120)
+        ]
+
         self.sounds = load_sounds(C.SOUND_PATH)
         self.audio = AudioManager(self.sounds)
 
     def run(self) -> None:
         while self.running:
             dt = self.clock.tick(C.FPS) / 1000.0
+            if self.scene == SceneState.MENU:
+                self.menu_time += dt
             self._handle_events()
             self._update(dt)
             self._draw()
@@ -111,7 +122,7 @@ class Game:
     def _draw(self) -> None:
         self.renderer.clear()
         if self.scene == SceneState.MENU:
-            self.renderer.draw_menu()
+            self.renderer.draw_menu(self.stars, self.menu_time)
         elif self.scene == SceneState.LOBBY:
             self.lobby.draw(self.screen, self.font, self.big)
         elif self.scene == SceneState.GAME_OVER:

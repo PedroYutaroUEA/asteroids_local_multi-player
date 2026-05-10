@@ -156,25 +156,113 @@ class Renderer:
             right = (ix + icon_w, y + icon_h)
             pg.draw.polygon(self.screen, color, [tip, left, right], 1)
 
-    def draw_menu(self) -> None:
-        self._draw_text(
-            self.big,
-            "ASTEROIDS",
-            self.config.WIDTH // 2 - 170,
-            200,
+    def draw_menu(
+        self,
+        stars: list[tuple[int, int, int]],
+        menu_time: float = 0.0,
+    ) -> None:
+        """Tela de início polida: starfield, título pulsante, guia de controles."""
+        import math
+
+        cx = C.WIDTH // 2
+        cy = C.HEIGHT // 2
+
+        # ── Fundo de estrelas ──────────────────────────────────────────────────
+        for sx, sy, sr in stars:
+            brightness = 120 + int(40 * math.sin(menu_time * 0.7 + sx * 0.05))
+            pg.draw.circle(self.screen, (brightness, brightness, brightness), (sx, sy), sr)
+
+        # ── Título "ASTEROIDS" com efeito de brilho pulsante ──────────────────
+        # Pulsa suavemente entre 80 % e 100 % de intensidade
+        pulse = 0.85 + 0.15 * math.sin(menu_time * 2.2)
+        title_color = (
+            int(240 * pulse),
+            int(240 * pulse),
+            int(240 * pulse),
         )
-        self._draw_text(
-            self.font,
-            "Press any key to start.",
-            self.config.WIDTH // 2 - 170,
-            350,
-        )
-        self._draw_text(
-            self.font,
-            "(or press 'ESC' to exit)",
-            self.config.WIDTH // 2 - 175,
-            375,
-        )
+        # Camadas de brilho (glow): renderizar o texto maior e mais transparente
+        for glow_scale, alpha in ((1.18, 18), (1.10, 35), (1.04, 60)):
+            glow_size = int(C.FONT_SIZE_LARGE * glow_scale)
+            glow_font = pg.font.SysFont(C.FONT_NAME, glow_size)
+            glow_surf = glow_font.render("ASTEROIDS", True, (255, 255, 255))
+            glow_surf.set_alpha(alpha)
+            gx = cx - glow_surf.get_width() // 2
+            gy = C.HEIGHT // 4 - glow_surf.get_height() // 2
+            self.screen.blit(glow_surf, (gx, gy))
+
+        title_surf = self.big.render("ASTEROIDS", True, title_color)
+        tx = cx - title_surf.get_width() // 2
+        ty = C.HEIGHT // 4 - title_surf.get_height() // 2
+        self.screen.blit(title_surf, (tx, ty))
+
+        # ── Subtítulo ─────────────────────────────────────────────────────────
+        sub_font = pg.font.SysFont(C.FONT_NAME, 20)
+        sub_surf = sub_font.render("LOCAL  MULTIPLAYER", True, (160, 200, 255))
+        self.screen.blit(sub_surf, (cx - sub_surf.get_width() // 2, ty + title_surf.get_height() + 6))
+
+        # ── Divisor ───────────────────────────────────────────────────────────
+        div_y = ty + title_surf.get_height() + 38
+        pg.draw.line(self.screen, (60, 60, 80), (cx - 220, div_y), (cx + 220, div_y), 1)
+
+        # ── Guia de controles ─────────────────────────────────────────────────
+        guide_y = div_y + 16
+        label_font = pg.font.SysFont(C.FONT_NAME, 17)
+
+        sections = [
+            ("TECLADO  P1", (255, 255, 255), [
+                ("Mover",      "← / ↑ / →"),
+                ("Atirar",     "Espaco"),
+                ("Hiperespaco","L Shift"),
+                ("Entrar",     'Pressione  "1"'),
+            ]),
+            ("TECLADO  P2", (0, 255, 100), [
+                ("Mover",      "W / A / D"),
+                ("Atirar",     "Q"),
+                ("Hiperespaco","E"),
+                ("Entrar",     'Pressione  "2"'),
+            ]),
+            ("CONTROLE", (100, 200, 255), [
+                ("Mover",      "Analogico esq."),
+                ("Atirar",     "Botao A / X"),
+                ("Hiperespaco","Botao B / O"),
+                ("Entrar",     "Qualquer botao"),
+            ]),
+        ]
+
+        col_w = C.WIDTH // 3
+        for col_idx, (header, hcolor, rows) in enumerate(sections):
+            col_x = col_idx * col_w + col_w // 2
+            # Cabeçalho da coluna
+            h_surf = label_font.render(header, True, hcolor)
+            self.screen.blit(h_surf, (col_x - h_surf.get_width() // 2, guide_y))
+            # Linha abaixo do cabeçalho
+            pg.draw.line(
+                self.screen, hcolor,
+                (col_x - 90, guide_y + h_surf.get_height() + 3),
+                (col_x + 90, guide_y + h_surf.get_height() + 3),
+                1,
+            )
+            row_y = guide_y + h_surf.get_height() + 10
+            for action, key in rows:
+                act_surf = label_font.render(action + ":", True, (140, 140, 140))
+                key_surf = label_font.render(key, True, (210, 210, 210))
+                self.screen.blit(act_surf, (col_x - 88, row_y))
+                self.screen.blit(key_surf, (col_x - 88 + act_surf.get_width() + 4, row_y))
+                row_y += act_surf.get_height() + 4
+
+        # ── Rodapé ────────────────────────────────────────────────────────────
+        footer_y = C.HEIGHT - 54
+        pg.draw.line(self.screen, (60, 60, 80), (cx - 220, footer_y - 8), (cx + 220, footer_y - 8), 1)
+
+        # Pisca o "pressione para começar" em sincronia com o pulso
+        if int(menu_time * 2) % 2 == 0:
+            start_surf = self.font.render("Pressione uma tecla ou botao para comecar", True, (200, 200, 200))
+            self.screen.blit(start_surf, (cx - start_surf.get_width() // 2, footer_y))
+
+        esc_surf = label_font.render("ESC  para sair", True, (90, 90, 90))
+        self.screen.blit(esc_surf, (cx - esc_surf.get_width() // 2, footer_y + 26))
+
+
 
     def draw_game_over(self) -> None:
         self._draw_text(
