@@ -70,3 +70,11 @@ class InputManager:
     def get_all_commands(self) -> dict[C.PlayerId, PlayerCommand]:
         """Gera o dicionário de comandos para o World.update."""
         return {pid: dev.build_command() for pid, dev in self.devices.items()}
+
+    def get_device_type(self, pid: C.PlayerId) -> str:
+        """Retorna 'keyboard' ou 'joystick' para o dispositivo do jogador, ou '' se não conectado."""
+        device = self.devices.get(pid)
+        if device is None:
+            return ""
+        return "joystick" if isinstance(device, JoystickDevice) else "keyboard"
+
