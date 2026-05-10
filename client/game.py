@@ -48,6 +48,7 @@ class Game:
         self.lobby = Lobby(self.input_manager)
         self.world = None
         self.scene = SceneState.MENU
+        self._pending_events: list = []
 
         # Starfield estático — seed fixa garante sempre as mesmas estrelas
         rng = random.Random(42)
@@ -71,8 +72,8 @@ class Game:
         pg.quit()
 
     def _handle_events(self) -> None:
-        events = pg.event.get()
-        for event in events:
+        self._pending_events = pg.event.get()
+        for event in self._pending_events:
             if event.type == pg.QUIT or (
                 event.type == pg.KEYDOWN and event.key == pg.K_ESCAPE
             ):
@@ -80,24 +81,26 @@ class Game:
 
             if self.scene == SceneState.MENU:
                 if event.type == pg.KEYDOWN:
+                    self.lobby.reset()
                     self.scene = SceneState.LOBBY
-
-            elif self.scene == SceneState.LOBBY:
-                # O Lobby decide quando o jogo começa
-                if self.lobby.update([event]):
-                    # INJEÇÃO DE DEPENDÊNCIA: Criamos o mundo com os IDs reais
-                    self.world = World(self.input_manager.get_player_ids())
-                    self.scene = SceneState.PLAY
 
             elif self.scene == SceneState.GAME_OVER:
                 if event.type == pg.KEYDOWN:
                     self.world.reset()
+                    self.lobby.reset()
                     self.scene = SceneState.LOBBY
 
             elif self.scene == SceneState.PLAY:
                 self.input_manager.handle_gameplay_events([event])
 
     def _update(self, dt: float) -> None:
+        # Lobby: processado uma vez por frame com dt para o countdown
+        if self.scene == SceneState.LOBBY:
+            if self.lobby.update(self._pending_events, dt):
+                self.world = World(self.input_manager.get_player_ids())
+                self.scene = SceneState.PLAY
+            return
+
         if self.scene != SceneState.PLAY:
             return
 
