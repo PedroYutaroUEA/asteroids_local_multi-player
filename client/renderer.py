@@ -264,19 +264,151 @@ class Renderer:
 
 
 
-    def draw_game_over(self) -> None:
-        self._draw_text(
-            self.big,
-            "FIM DE JOGO!",
-            self.config.WIDTH // 2 - 170,
-            260,
-        )
-        self._draw_text(
-            self.font,
-            "Press any key to start.",
-            self.config.WIDTH // 2 - 170,
-            340,
-        )
+    def draw_game_over(
+        self,
+        scores: dict | None = None,
+        lives: dict | None = None,
+        wave: int = 0,
+        shots_fired: int = 0,
+        power_use_count: int = 0,
+        elapsed: float = 0.0,
+    ) -> None:
+        """Tela de fim de jogo com ranking, estatísticas e fade-in."""
+        import math
+
+        scores = scores or {}
+        lives = lives or {}
+        cx = C.WIDTH // 2
+
+        # ── Fade-in de fundo ──────────────────────────────────────────────────
+        fade_alpha = min(200, int(elapsed * 340))  # 0→200 em ~0.6 s
+        fade = pg.Surface((C.WIDTH, C.HEIGHT), pg.SRCALPHA)
+        fade.fill((0, 0, 0, fade_alpha))
+        self.screen.blit(fade, (0, 0))
+
+        # Só renderiza o conteúdo após o fundo estar suficientemente opaco
+        content_alpha = max(0, min(255, int((elapsed - 0.35) * 510)))
+        if content_alpha == 0:
+            return
+
+        label_font  = pg.font.SysFont(C.FONT_NAME, 17)
+        medium_font = pg.font.SysFont(C.FONT_NAME, 22)
+
+        # ── Título "GAME OVER" com pulso ──────────────────────────────────────
+        pulse = 0.85 + 0.15 * math.sin(elapsed * 2.5)
+        title_color = (int(255 * pulse), int(80 * pulse), int(80 * pulse))
+        title_surf = self.big.render("GAME  OVER", True, title_color)
+        title_surf.set_alpha(content_alpha)
+        self.screen.blit(title_surf, (cx - title_surf.get_width() // 2, 28))
+
+        sub = label_font.render(f"WAVE  {wave}  ENCERRADA", True, (140, 140, 160))
+        sub.set_alpha(content_alpha)
+        self.screen.blit(sub, (cx - sub.get_width() // 2, 28 + title_surf.get_height() + 6))
+
+        # ── Divisor ───────────────────────────────────────────────────────────
+        div_y = 28 + title_surf.get_height() + 34
+        pg.draw.line(self.screen, (60, 60, 80), (cx - 300, div_y), (cx + 300, div_y), 1)
+
+        # ── Ranking ───────────────────────────────────────────────────────────
+        rank_y = div_y + 14
+        rank_header = medium_font.render("RANKING FINAL", True, (180, 180, 200))
+        rank_header.set_alpha(content_alpha)
+        self.screen.blit(rank_header, (cx - rank_header.get_width() // 2, rank_y))
+        rank_y += rank_header.get_height() + 10
+
+        # Ordena jogadores do maior para o menor score
+        medal_labels = {1: "[1]", 2: "[2]", 3: "[3]", 4: "[4]"}
+        medal_colors = {
+            1: (255, 215, 60),   # ouro
+            2: (200, 200, 210),  # prata
+            3: (200, 130, 80),   # bronze
+            4: (140, 140, 150),  # 4º
+        }
+
+        sorted_pids = sorted(scores.keys(), key=lambda p: scores[p], reverse=True)
+
+        row_h = 38
+        row_w = 560
+        row_x = cx - row_w // 2
+
+        for rank, pid in enumerate(sorted_pids, start=1):
+            ry = rank_y + (rank - 1) * (row_h + 6)
+            player_color = C.PLAYER_COLORS.get(pid, self.config.WHITE)
+            is_eliminated = lives.get(pid, 0) <= 0
+            m_color = medal_colors[rank]
+
+            # Fundo da linha
+            row_bg = pg.Surface((row_w, row_h), pg.SRCALPHA)
+            row_bg.fill((255, 255, 255, 8) if rank == 1 else (0, 0, 0, 60))
+            row_bg.set_alpha(content_alpha)
+            self.screen.blit(row_bg, (row_x, ry))
+            pg.draw.rect(self.screen, m_color, (row_x, ry, row_w, row_h), 1)
+
+            # Medalha
+            medal_surf = medium_font.render(medal_labels[rank], True, m_color)
+            medal_surf.set_alpha(content_alpha)
+            self.screen.blit(medal_surf, (row_x + 10, ry + row_h // 2 - medal_surf.get_height() // 2))
+
+            # Nome do jogador
+            name_surf = medium_font.render(f"PLAYER {pid}", True, player_color)
+            name_surf.set_alpha(content_alpha)
+            self.screen.blit(name_surf, (row_x + 60, ry + row_h // 2 - name_surf.get_height() // 2))
+
+            # Score
+            score_surf = medium_font.render(f"{scores[pid]:07d}", True, self.config.WHITE)
+            score_surf.set_alpha(content_alpha)
+            self.screen.blit(score_surf, (row_x + 260, ry + row_h // 2 - score_surf.get_height() // 2))
+
+            # Status
+            if is_eliminated:
+                status_text = "ELIMINADO"
+                status_color = (200, 60, 60)
+            else:
+                status_text = "SOBREVIVEU"
+                status_color = (80, 200, 100)
+            status_surf = label_font.render(status_text, True, status_color)
+            status_surf.set_alpha(content_alpha)
+            self.screen.blit(status_surf, (row_x + 420, ry + row_h // 2 - status_surf.get_height() // 2))
+
+        # ── Estatísticas da Partida ───────────────────────────────────────────
+        stats_y = rank_y + len(sorted_pids) * (row_h + 6) + 20
+        pg.draw.line(self.screen, (60, 60, 80), (cx - 300, stats_y), (cx + 300, stats_y), 1)
+        stats_y += 12
+
+        stats_header = medium_font.render("ESTATISTICAS DA PARTIDA", True, (160, 160, 180))
+        stats_header.set_alpha(content_alpha)
+        self.screen.blit(stats_header, (cx - stats_header.get_width() // 2, stats_y))
+        stats_y += stats_header.get_height() + 10
+
+        stats = [
+            ("Wave alcancada",      str(wave)),
+            ("Tiros disparados",    str(shots_fired)),
+            ("Hiperespacos usados", str(power_use_count)),
+        ]
+
+        stat_col_w = 300
+        stat_x = cx - stat_col_w // 2
+        for label_text, value_text in stats:
+            lbl = label_font.render(label_text + ":", True, (130, 130, 150))
+            val = label_font.render(value_text, True, (220, 220, 220))
+            lbl.set_alpha(content_alpha)
+            val.set_alpha(content_alpha)
+            self.screen.blit(lbl, (stat_x, stats_y))
+            self.screen.blit(val, (stat_x + stat_col_w - val.get_width(), stats_y))
+            stats_y += lbl.get_height() + 5
+
+        # ── Instrução de reinício ─────────────────────────────────────────────
+        footer_y = C.HEIGHT - 50
+        pg.draw.line(self.screen, (60, 60, 80), (cx - 260, footer_y - 10), (cx + 260, footer_y - 10), 1)
+
+        if elapsed > 1.2 and int(elapsed * 2) % 2 == 0:
+            restart_surf = self.font.render(
+                "Pressione  ENTER  para jogar novamente", True, (200, 200, 200)
+            )
+            restart_surf.set_alpha(content_alpha)
+            self.screen.blit(restart_surf, (cx - restart_surf.get_width() // 2, footer_y))
+
+
 
     def _draw_text(
         self,

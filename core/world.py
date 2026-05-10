@@ -23,6 +23,7 @@ class World:
             pid: C.START_LIVES for pid in self.active_player_ids
         }
         self.power_use_count = 0
+        self.shots_fired = 0
 
         self.bullets = pg.sprite.Group()
         self.asteroids = pg.sprite.Group()
@@ -84,6 +85,7 @@ class World:
             if bullet:
                 self.bullets.add(bullet)
                 self.all_sprites.add(bullet)
+                self.shots_fired += 1
                 self.events.append("player_shoot")
 
     def _handle_collisions(self) -> None:

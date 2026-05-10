@@ -34,7 +34,8 @@ class Game:
 
         self.clock = pg.time.Clock()
         self.running = True
-        self.menu_time: float = 0.0  # acumulador para animações do menu
+        self.menu_time: float = 0.0       # acumulador para animações do menu
+        self.gameover_time: float = 0.0   # acumulador para fade-in do game over
 
         self.font = pg.font.SysFont(C.FONT_NAME, C.FONT_SIZE_SMALL)
         self.big = pg.font.SysFont(C.FONT_NAME, C.FONT_SIZE_LARGE)
@@ -65,6 +66,8 @@ class Game:
             dt = self.clock.tick(C.FPS) / 1000.0
             if self.scene == SceneState.MENU:
                 self.menu_time += dt
+            elif self.scene == SceneState.GAME_OVER:
+                self.gameover_time += dt
             self._handle_events()
             self._update(dt)
             self._draw()
@@ -83,12 +86,14 @@ class Game:
                 if event.type == pg.KEYDOWN:
                     self.lobby.reset()
                     self.scene = SceneState.LOBBY
+                    self._pending_events = []  # evita que a tecla vaze para lobby.update()
 
             elif self.scene == SceneState.GAME_OVER:
-                if event.type == pg.KEYDOWN:
+                if event.type == pg.KEYDOWN and event.key == pg.K_RETURN:
                     self.world.reset()
                     self.lobby.reset()
                     self.scene = SceneState.LOBBY
+                    self._pending_events = []  # evita que o ENTER vaze para lobby.update()
 
             elif self.scene == SceneState.PLAY:
                 self.input_manager.handle_gameplay_events([event])
@@ -109,6 +114,7 @@ class Game:
 
         if self.world.game_over:
             self.audio.stop_all()
+            self.gameover_time = 0.0
             self.scene = SceneState.GAME_OVER
             return
 
@@ -129,7 +135,14 @@ class Game:
         elif self.scene == SceneState.LOBBY:
             self.lobby.draw(self.screen, self.font, self.big)
         elif self.scene == SceneState.GAME_OVER:
-            self.renderer.draw_game_over()
+            self.renderer.draw_game_over(
+                scores=self.world.scores,
+                lives=self.world.lives,
+                wave=self.world.wave,
+                shots_fired=self.world.shots_fired,
+                power_use_count=self.world.power_use_count,
+                elapsed=self.gameover_time,
+            )
         elif self.scene == SceneState.PLAY:
             self.renderer.draw_world(self.world)
             self.renderer.draw_hud(
