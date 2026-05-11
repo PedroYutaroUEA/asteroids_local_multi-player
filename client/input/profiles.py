@@ -34,7 +34,16 @@ JOYSTICK_XBOX = {
     },
 }
 
+JOYSTICK_PS4 = {
+    "axes": {0: {"neg": "rotate_left", "pos": "rotate_right"}},
+    "buttons": {
+        0: "shoot",  # Cross (X)
+        1: "hyperspace",  # Circle (O)
+        10: "thrust",  # R1 (botão superior direito)
+    },
+}
+
 JOYSTICK_GENERIC = {
     "axes": {0: {"neg": "rotate_left", "pos": "rotate_right"}},
-    "buttons": {2: "shoot", 3: "hyperspace", 1: "thrust"},
+    "buttons": {0: "shoot", 1: "hyperspace", 5: "thrust"},
 }

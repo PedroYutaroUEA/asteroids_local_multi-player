@@ -4,6 +4,7 @@ from client.input.keyboard import KeyboardDevice
 
 from client.input.profiles import (
     JOYSTICK_XBOX,
+    JOYSTICK_PS4,
     KEYBOARD_PROFILES,
     JOYSTICK_GENERIC,
 )
@@ -18,6 +19,16 @@ class InputManager:
     def __init__(self):
         self.devices: dict[C.PlayerId, InputDevice] = {}
         self.active_joystick_ids = set()
+
+        self.joysticks = []
+
+        for i in range(pg.joystick.get_count()):
+            joy = pg.joystick.Joystick(i)
+            joy.init()
+
+            self.joysticks.append(joy)
+
+            print(f"[JOYSTICK] Detectado: {joy.get_name()}")
 
     def _get_next_available_id(self) -> int:
         """Encontra o menor ID de 1 a 4 que não está em uso."""
@@ -51,10 +62,14 @@ class InputManager:
         name = joystick.get_name().lower()
         if "xbox" in name or "x-input" in name:
             profile = JOYSTICK_XBOX
+        elif "ps4" in name or "dualshock" in name or "wireless" in name:
+            profile = JOYSTICK_PS4
         else:
             profile = JOYSTICK_GENERIC
 
-        print(f"Assigning {name} to Player {player_id} using generic profile.")
+        print(
+            f"Assigning {name} to Player {player_id} using {profile.__name__ if hasattr(profile, '__name__') else 'generic'} profile."
+        )
         self.devices[player_id] = JoystickDevice(joystick, profile)
 
     def handle_gameplay_events(self, events: list[pg.event.Event]):
