@@ -33,7 +33,7 @@ class InputManager:
     def _get_next_available_id(self) -> int:
         """Encontra o menor ID de 1 a 4 que não está em uso."""
         for i in range(1, C.MAX_PLAYERS + 1):
-            if i not in self.devices:
+            if i not in self.devices and i > 2:
                 return i
         return None
 
@@ -47,10 +47,12 @@ class InputManager:
                         pid = int(profile_name[-1])  # P1 -> 1, P2 -> 2
                         if pid not in self.devices:
                             self.devices[pid] = KeyboardDevice(mapping)
+                            print(self.devices)
 
             # Entrada por Joystick
             if event.type == pg.JOYBUTTONDOWN:
                 if event.joy not in self.active_joystick_ids:
+                    print(f"event.joy: {event.joy}")
                     pid = self._get_next_available_id()
                     if pid:
                         joy = pg.joystick.Joystick(event.joy)
@@ -71,6 +73,7 @@ class InputManager:
             f"Assigning {name} to Player {player_id} using {profile.__name__ if hasattr(profile, '__name__') else 'generic'} profile."
         )
         self.devices[player_id] = JoystickDevice(joystick, profile)
+        print(self.devices)
 
     def handle_gameplay_events(self, events: list[pg.event.Event]):
         """Roteia eventos discretos para cada dispositivo ativo."""
