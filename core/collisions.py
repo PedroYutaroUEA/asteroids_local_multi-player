@@ -29,8 +29,10 @@ class CollisionManager:
         bullets: pg.sprite.Group,
         asteroids: pg.sprite.Group,
         ufos: pg.sprite.Group,
+        tethers: list[tuple[C.PlayerId, C.PlayerId]] = None,
     ) -> CollisionResult:
         result = CollisionResult()
+        tethers = tethers or []
         # Enviroment Interactions
         self._bullets_vs_asteroids(bullets, asteroids, result)
         self._ufo_vs_player_bullets(ufos, bullets, result)
@@ -40,7 +42,65 @@ class CollisionManager:
         self._ship_vs_ufo_bullets(ships, bullets, result)
         self._ship_vs_player_bullets(ships, bullets, result)
         self._ship_vs_ship(ships, result)
+        self._tether_vs_asteroids(tethers, ships, asteroids, result)
+        self._tether_vs_ufos(tethers, ships, ufos, result)
         return result
+
+    def _tether_vs_asteroids(
+        self,
+        tethers: list[tuple[C.PlayerId, C.PlayerId]],
+        ships: dict[C.PlayerId, Ship],
+        asteroids: pg.sprite.Group,
+        result: CollisionResult,
+    ) -> None:
+        for p1, p2 in tethers:
+            s1, s2 = ships.get(p1), ships.get(p2)
+            if not s1 or not s2 or not s1.alive() or not s2.alive():
+                continue
+            for ast in list(asteroids):
+                if self._line_intersects_circle(s1.pos, s2.pos, ast.pos, ast.r):
+                    # Ambos dividem os pontos, atribuimos ao p1 para simplificar, ou ambos
+                    self._split_asteroid(ast, result=result, scorer_id=p1)
+                    # p2 also gets points
+                    result.score_deltas[p2] = result.score_deltas.get(p2, 0) + C.AST_SIZES[ast.size]["score"]
+
+    def _tether_vs_ufos(
+        self,
+        tethers: list[tuple[C.PlayerId, C.PlayerId]],
+        ships: dict[C.PlayerId, Ship],
+        ufos: pg.sprite.Group,
+        result: CollisionResult,
+    ) -> None:
+        for p1, p2 in tethers:
+            s1, s2 = ships.get(p1), ships.get(p2)
+            if not s1 or not s2 or not s1.alive() or not s2.alive():
+                continue
+            for ufo in list(ufos):
+                if self._line_intersects_circle(s1.pos, s2.pos, ufo.pos, ufo.r):
+                    score = C.UFO_SMALL["score"] if ufo.small else C.UFO_BIG["score"]
+                    result.score_deltas[p1] = result.score_deltas.get(p1, 0) + score
+                    result.score_deltas[p2] = result.score_deltas.get(p2, 0) + score
+                    ufo.kill()
+                    result.events.append("ship_explosion")
+
+    def _line_intersects_circle(self, p1: Vec, p2: Vec, center: Vec, r: float) -> bool:
+        line_vec = p2 - p1
+        line_len = line_vec.length()
+        if line_len == 0:
+            return (center - p1).length() <= r
+        
+        line_unit = line_vec / line_len
+        point_to_center = center - p1
+        proj_length = point_to_center.dot(line_unit)
+        
+        if proj_length < 0:
+            closest_point = p1
+        elif proj_length > line_len:
+            closest_point = p2
+        else:
+            closest_point = p1 + line_unit * proj_length
+            
+        return (center - closest_point).length() <= r
 
     def _ship_vs_player_bullets(
         self,

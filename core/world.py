@@ -24,6 +24,7 @@ class World:
         }
         self.power_use_count = 0
         self.shots_fired = 0
+        self.tethers: list[tuple[C.PlayerId, C.PlayerId]] = []
 
         self.bullets = pg.sprite.Group()
         self.asteroids = pg.sprite.Group()
@@ -61,6 +62,7 @@ class World:
         self.events.clear()
 
         self._apply_players_commands(dt, commands)
+        self._update_tethers(dt, commands)
         self.all_sprites.update(dt)
         self._update_ufos(dt)
         self._update_timers(dt)
@@ -88,9 +90,45 @@ class World:
                 self.shots_fired += 1
                 self.events.append("player_shoot")
 
+    def _update_tethers(self, dt: float, commands: Dict[C.PlayerId, PlayerCommand]) -> None:
+        pressing_special = []
+        for pid, cmd in commands.items():
+            ship = self.ships.get(pid)
+            if ship and ship.alive() and cmd.special:
+                pressing_special.append(pid)
+
+        for i in range(len(pressing_special)):
+            for j in range(i + 1, len(pressing_special)):
+                p1, p2 = pressing_special[i], pressing_special[j]
+                already_tethered = any(
+                    (t[0] == p1 and t[1] == p2) or (t[0] == p2 and t[1] == p1)
+                    for t in self.tethers
+                )
+                if not already_tethered:
+                    if (self.ships[p1].pos - self.ships[p2].pos).length() <= C.TETHER_MAX_DIST:
+                        self.tethers.append((p1, p2))
+
+        active_tethers = []
+        for p1, p2 in self.tethers:
+            s1, s2 = self.ships.get(p1), self.ships.get(p2)
+            if s1 and s2 and s1.alive() and s2.alive():
+                cmd1, cmd2 = commands.get(p1), commands.get(p2)
+                if cmd1 and cmd2 and cmd1.special and cmd2.special:
+                    if (s1.pos - s2.pos).length() <= C.TETHER_MAX_DIST:
+                        active_tethers.append((p1, p2))
+                        # cost is applied as an integer chunk every so often or directly subtracting and flooring
+                        # Note: float cost accumulation isn't supported without adding float fields to scores.
+                        # Let's subtract a probabilistic cost or keep score as integer.
+                        if uniform(0, 1) < dt:
+                             cost = int(C.TETHER_SCORE_COST_PER_SEC)
+                             self.scores[p1] = max(0, self.scores[p1] - cost)
+                             self.scores[p2] = max(0, self.scores[p2] - cost)
+
+        self.tethers = active_tethers
+
     def _handle_collisions(self) -> None:
         result = self._collision_mgr.resolve(
-            self.ships, self.bullets, self.asteroids, self.ufos
+            self.ships, self.bullets, self.asteroids, self.ufos, self.tethers
         )
         self.events.extend(result.events)
 
