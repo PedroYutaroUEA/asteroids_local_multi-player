@@ -57,5 +57,10 @@ JOYSTICK_PLAYSTATION = {
 
 JOYSTICK_GENERIC = {
     "axes": {0: {"neg": "rotate_left", "pos": "rotate_right"}},
-    "buttons": {0: "shoot", 1: "hyperspace", 3: "time_bomb", 5: "thrust"},
+    "buttons": {
+        0: "shoot", 
+        1: "hyperspace", 
+        3: "special", 
+        5: "thrust"
+    },
 }
