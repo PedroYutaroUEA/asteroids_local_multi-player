@@ -34,6 +34,7 @@ JOYSTICK_XBOX = {
     "buttons": {
         0: "shoot",  # Botão A
         1: "hyperspace",  # Botão B
+        2: "time_bomb",  # Botão X
         3: "special", # Botão Y
         7: "thrust",  # Botão Start/Menu (como reserva)
     },
@@ -48,7 +49,8 @@ JOYSTICK_PLAYSTATION = {
     "buttons": {
         0: "shoot",  # Cross (X)
         1: "hyperspace",  # Circle (O)
-        3: "time_bomb",  # Triangle (Δ)
+        2: "time_bomb",  # Square (□)
+        3: "special",  # Triangle (Δ)
         10: "thrust",  # R1 (botão superior direito)
     },
 }
