@@ -7,6 +7,7 @@ KEYBOARD_PROFILES = {
         pg.K_LEFT: "rotate_left",
         pg.K_RIGHT: "rotate_right",
         pg.K_SPACE: "shoot",
+        pg.K_RSHIFT: "time_bomb",
         pg.K_LSHIFT: "hyperspace",
         pg.K_LALT: "special",
         "join_key": pg.K_1,
@@ -18,6 +19,7 @@ KEYBOARD_PROFILES = {
         pg.K_q: "shoot",
         pg.K_e: "hyperspace",
         pg.K_f: "special",
+        pg.K_r: "time_bomb",
         "join_key": pg.K_2,
     },
 }
@@ -46,10 +48,12 @@ JOYSTICK_PLAYSTATION = {
     "buttons": {
         0: "shoot",  # Cross (X)
         1: "hyperspace",  # Circle (O)
+        3: "time_bomb",  # Triangle (Δ)
+        10: "thrust",  # R1 (botão superior direito)
     },
 }
 
 JOYSTICK_GENERIC = {
     "axes": {0: {"neg": "rotate_left", "pos": "rotate_right"}},
-    "buttons": {0: "shoot", 1: "hyperspace", 5: "thrust"},
+    "buttons": {0: "shoot", 1: "hyperspace", 3: "time_bomb", 5: "thrust"},
 }

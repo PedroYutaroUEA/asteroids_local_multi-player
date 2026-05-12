@@ -22,9 +22,11 @@ class JoystickDevice(InputDevice):
             "rotate_right": False,
             "thrust": False,
             "shoot": self.trigger_states["shoot"],
+            "time_bomb": self.trigger_states["time_bomb"],
             "hyperspace": self.trigger_states["hyperspace"],
         }
         self.trigger_states["shoot"] = False
+        self.trigger_states["time_bomb"] = False
         self.trigger_states["hyperspace"] = False
 
         # Processa Eixos
