@@ -17,6 +17,7 @@ class CollisionResult:
     events: list[str] = field(default_factory=list)
     score_deltas: dict[C.PlayerId, int] = field(default_factory=dict)
     ship_deaths: list[C.PlayerId] = field(default_factory=list)
+    ship_time_delayed: list[C.PlayerId] = field(default_factory=list)
     asteroids_to_spawn: list[tuple[Vec, Vec, str]] = field(default_factory=list)
 
 
@@ -29,6 +30,7 @@ class CollisionManager:
         bullets: pg.sprite.Group,
         asteroids: pg.sprite.Group,
         ufos: pg.sprite.Group,
+        time_bombs: pg.sprite.Group,
         tethers: list[tuple[C.PlayerId, C.PlayerId]] = None,
     ) -> CollisionResult:
         result = CollisionResult()
@@ -44,6 +46,10 @@ class CollisionManager:
         self._ship_vs_ship(ships, result)
         self._tether_vs_asteroids(tethers, ships, asteroids, result)
         self._tether_vs_ufos(tethers, ships, ufos, result)
+        self._ship_vs_time_bombs(ships, time_bombs, result)
+        self._asteroid_vs_time_bombs(asteroids, time_bombs, result)
+        self._ufo_vs_time_bombs(ufos, time_bombs, result)
+        self._bullets_vs_time_bombs(bullets, time_bombs, result)
         return result
 
     def _tether_vs_asteroids(
@@ -126,6 +132,28 @@ class CollisionManager:
                     bullet.kill()
                     result.ship_deaths.append(ship.player_id)
                     result.events.append("ship_explosion")
+    
+    def _ship_vs_time_bombs(
+        self,
+        ships: dict[C.PlayerId, Ship],
+        time_bombs: pg.sprite.Group,
+        result: CollisionResult,
+    ) -> None:
+        """Lógica de PVP: Jogador atingido por bomba-relógio de outro jogador."""
+        for ship in list(ships.values()):
+            if ship.invuln > 0.0 or not ship.alive():
+                continue
+
+            for bomb in list(time_bombs):
+                # Ignora bombas-relógio lançadas pela própria nave
+                if bomb.owner_id == ship.player_id:
+                    continue
+
+                if (bomb.pos - ship.pos).length() < (bomb.r + ship.r) and bomb.exploded:
+                    ship.vel *= 0.8  # Reduz a velocidade da nave atingida
+                    result.events.append("ship_time_delayed")
+                elif (bomb.pos - ship.pos).length() < (bomb.r + ship.r) and not bomb.exploded:
+                    bomb.early_explosion = True  # Detona a bomba mais rápido se atingida por uma nave
 
     def _ship_vs_ship(
         self, ships: dict[C.PlayerId, Ship], result: CollisionResult
@@ -168,6 +196,39 @@ class CollisionManager:
             player_bullets = [b for b in hit_bullets if b.owner_id > 0]
             scorer = player_bullets[0].owner_id if player_bullets else None
             self._split_asteroid(ast, scorer_id=scorer, result=result)
+    
+    def _bullets_vs_time_bombs(
+        self,
+        bullets: pg.sprite.Group,
+        time_bombs: pg.sprite.Group,
+        result: CollisionResult,
+    ) -> None:
+        """Lógica de PVP: Jogador atingido por bomba-relógio de outro jogador."""
+        for bullet in list(bullets):
+            for bomb in list(time_bombs):
+                if bullet.owner_id != bomb.owner_id:
+                    if (bomb.pos - bullet.pos).length() < (bomb.r + bullet.r) and bomb.exploded:
+                        bullet.vel *= 0.8  # Reduz a velocidade do projétil atingido
+                        result.events.append("bullet_time_delayed")
+                    elif (bomb.pos - bullet.pos).length() < (bomb.r + bullet.r) and not bomb.exploded:
+                        bomb.early_explosion = True  # Detona a bomba mais rápido se atingida por um tiro
+                else:
+                    continue
+    
+    def _asteroid_vs_time_bombs(
+        self,
+        asteroids: pg.sprite.Group,
+        time_bombs: pg.sprite.Group,
+        result: CollisionResult,
+    ) -> None:
+        """Lógica de PVP: Jogador atingido por bomba-relógio de outro jogador."""
+        for ast in list(asteroids):
+            for bomb in list(time_bombs):
+                if (bomb.pos - ast.pos).length() < (bomb.r + ast.r) and bomb.exploded:
+                    ast.vel *= 0.8  # Reduz a velocidade do asteroide atingido
+                    result.events.append("asteroid_time_delayed")
+                elif (bomb.pos - ast.pos).length() < (bomb.r + ast.r) and not bomb.exploded:
+                    bomb.early_explosion = True  # Detona a bomba mais rápido se atingida por um asteroide
 
     def _ufo_vs_player_bullets(
         self,
@@ -187,6 +248,21 @@ class CollisionManager:
                     ufo.kill()
                     bullet.kill()
                     result.events.append("ship_explosion")
+    
+    def _ufo_vs_time_bombs(
+        self,
+        ufos: pg.sprite.Group,
+        time_bombs: pg.sprite.Group,
+        result: CollisionResult,
+    ) -> None:
+        """Lógica de PVP: Jogador atingido por bomba-relógio de outro jogador."""
+        for ufo in list(ufos):
+            for bomb in list(time_bombs):
+                if (bomb.pos - ufo.pos).length() < (bomb.r + ufo.r) and bomb.exploded:
+                    ufo.vel *= 0.8  # Reduz a velocidade da nave atingida
+                    result.events.append("ufo_time_delayed")
+                elif (bomb.pos - ufo.pos).length() < (bomb.r + ufo.r) and not bomb.exploded:
+                    bomb.early_explosion = True  # Detona a bomba mais rápido se atingida por uma nave
 
     def _ufo_vs_asteroids(
         self,
