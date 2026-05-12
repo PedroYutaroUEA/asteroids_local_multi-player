@@ -33,6 +33,15 @@ class Renderer:
         self.screen.fill(self.config.BLACK)
 
     def draw_world(self, world: object) -> None:
+        if hasattr(world, "tethers") and hasattr(world, "ships"):
+            import random
+            for p1, p2 in world.tethers:
+                s1 = world.ships.get(p1)
+                s2 = world.ships.get(p2)
+                if s1 and s2:
+                    color = (random.randint(100, 255), random.randint(100, 255), 255)
+                    pg.draw.line(self.screen, color, (int(s1.pos.x), int(s1.pos.y)), (int(s2.pos.x), int(s2.pos.y)), 3)
+                    
         sprites = getattr(world, "all_sprites", [])
         for sprite in sprites:
             drawer = self._draw_dispatch.get(type(sprite))
