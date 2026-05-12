@@ -13,6 +13,11 @@ from core.utils import Vec, rand_edge_pos
 class World:
     def __init__(self, player_ids: List[C.PlayerId]) -> None:
         self.active_player_ids = player_ids  # Armazena para facilitar o reset
+        self.tethers: list[tuple[C.PlayerId, C.PlayerId]] = []
+        self.game_over = False
+        self.ufo_timer = float(C.UFO_SPAWN_EVERY)
+        self.wave_cool = float(C.WAVE_DELAY)
+
         self._init_state()
 
     def _init_state(self) -> None:
@@ -24,7 +29,6 @@ class World:
         }
         self.power_use_count = 0
         self.shots_fired = 0
-        self.tethers: list[tuple[C.PlayerId, C.PlayerId]] = []
 
         self.bullets = pg.sprite.Group()
         self.time_bombs = pg.sprite.Group()
@@ -87,36 +91,40 @@ class World:
             ship.apply_command(cmd, dt)
 
             if cmd.shoot:
-                bullet = ship._try_fire(self.bullets)
+                bullet = ship.try_fire(self.bullets)
                 if bullet:
                     self.bullets.add(bullet)
                     self.all_sprites.add(bullet)
                     self.shots_fired += 1
                     self.events.append("player_shoot")
-            
+
             if cmd.time_bomb:
-                time_bomb = ship._try_time_bomb(self.time_bombs)
+                time_bomb = ship.try_time_bomb(self.time_bombs)
                 if time_bomb:
                     self.time_bombs.add(time_bomb)
                     self.all_sprites.add(time_bomb)
                     self.events.append("player_time_bomb")
 
-    def _update_tethers(self, dt: float, commands: Dict[C.PlayerId, PlayerCommand]) -> None:
+    def _update_tethers(
+        self, dt: float, commands: Dict[C.PlayerId, PlayerCommand]
+    ) -> None:
         pressing_special = []
         for pid, cmd in commands.items():
             ship = self.ships.get(pid)
             if ship and ship.alive() and cmd.special:
                 pressing_special.append(pid)
 
-        for i in range(len(pressing_special)):
+        for i, p1 in enumerate(pressing_special):
             for j in range(i + 1, len(pressing_special)):
-                p1, p2 = pressing_special[i], pressing_special[j]
+                p2 = pressing_special[j]
                 already_tethered = any(
                     (t[0] == p1 and t[1] == p2) or (t[0] == p2 and t[1] == p1)
                     for t in self.tethers
                 )
                 if not already_tethered:
-                    if (self.ships[p1].pos - self.ships[p2].pos).length() <= C.TETHER_MAX_DIST:
+                    if (
+                        self.ships[p1].pos - self.ships[p2].pos
+                    ).length() <= C.TETHER_MAX_DIST:
                         self.tethers.append((p1, p2))
 
         active_tethers = []
@@ -131,15 +139,20 @@ class World:
                         # Note: float cost accumulation isn't supported without adding float fields to scores.
                         # Let's subtract a probabilistic cost or keep score as integer.
                         if uniform(0, 1) < dt:
-                             cost = int(C.TETHER_SCORE_COST_PER_SEC)
-                             self.scores[p1] = max(0, self.scores[p1] - cost)
-                             self.scores[p2] = max(0, self.scores[p2] - cost)
+                            cost = int(C.TETHER_SCORE_COST_PER_SEC)
+                            self.scores[p1] = max(0, self.scores[p1] - cost)
+                            self.scores[p2] = max(0, self.scores[p2] - cost)
 
         self.tethers = active_tethers
 
     def _handle_collisions(self) -> None:
         result = self._collision_mgr.resolve(
-            self.ships, self.bullets, self.asteroids, self.ufos, self.time_bombs, self.tethers
+            self.ships,
+            self.bullets,
+            self.asteroids,
+            self.ufos,
+            self.time_bombs,
+            self.tethers,
         )
         self.events.extend(result.events)
 
@@ -183,7 +196,7 @@ class World:
         self.ufo_timer -= dt
         if self.ufo_timer <= 0.0:
             self.spawn_ufo()
-            self.ufo_timer = float(C.UFO_SPAWN_EVERY)
+
         for ship in self.ships.values():
             ship.update_time_bomb_cooldown(dt)
         for time_bomb in self.time_bombs:
@@ -195,7 +208,6 @@ class World:
         self.wave_cool -= dt
         if self.wave_cool <= 0.0:
             self.start_wave()
-            self.wave_cool = float(C.WAVE_DELAY)
 
     def _get_nearest_ship_pos(self, from_pos: Vec) -> Vec | None:
         nearest = None

@@ -79,7 +79,7 @@ class Ship(Entity):
         self.pos = wrap_pos(self.pos)
         self._sync_rect()
 
-    def _try_fire(self, bullets: pg.sprite.Group) -> "Bullet | None":
+    def try_fire(self, bullets: pg.sprite.Group) -> "Bullet | None":
         if self.cool > 0.0:
             return None
 
@@ -95,8 +95,8 @@ class Ship(Entity):
 
         self.cool = float(C.SHIP_FIRE_RATE)
         return Bullet(self.player_id, pos, vel, ttl=C.BULLET_TTL)
-    
-    def _try_time_bomb(self, time_bombs: pg.sprite.Group) -> "TimeBomb | None":
+
+    def try_time_bomb(self, time_bombs: pg.sprite.Group) -> "TimeBomb | None":
         if not self.time_bomb_ready:
             return None
 
@@ -108,7 +108,7 @@ class Ship(Entity):
         vel = self.vel + dirv * C.TIME_BOMB_SPEED
 
         return TimeBomb(self.player_id, pos, vel, ttl=C.TIME_BOMB_TTL)
-    
+
     def update_time_bomb_cooldown(self, dt: float) -> None:
         if not self.time_bomb_ready:
             self.time_bomb_cooldown = max(0.0, self.time_bomb_cooldown - dt)

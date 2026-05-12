@@ -35,7 +35,7 @@ JOYSTICK_XBOX = {
         0: "shoot",  # Botão A
         1: "hyperspace",  # Botão B
         2: "time_bomb",  # Botão X
-        3: "special", # Botão Y
+        3: "special",  # Botão Y
         7: "thrust",  # Botão Start/Menu (como reserva)
     },
 }
@@ -57,11 +57,5 @@ JOYSTICK_PLAYSTATION = {
 
 JOYSTICK_GENERIC = {
     "axes": {0: {"neg": "rotate_left", "pos": "rotate_right"}},
-    "buttons": {
-        0: "shoot", 
-        1: "hyperspace",
-        2: "time_bomb", 
-        3: "special", 
-        5: "thrust"
-    },
+    "buttons": {0: "shoot", 1: "hyperspace", 2: "time_bomb", 3: "special", 5: "thrust"},
 }

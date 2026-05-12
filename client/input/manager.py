@@ -63,7 +63,12 @@ class InputManager:
         if "xbox" in name or "x-input" in name:
             profile = JOYSTICK_XBOX
             profile_name = "JOYSTICK_XBOX"
-        elif "ps4" in name or "dualshock" in name or "dualsense" in name or "wireless" in name:
+        elif (
+            "ps4" in name
+            or "dualshock" in name
+            or "dualsense" in name
+            or "wireless" in name
+        ):
             profile = JOYSTICK_PLAYSTATION
             profile_name = "JOYSTICK_PLAYSTATION"
         else:
@@ -93,4 +98,3 @@ class InputManager:
         if device is None:
             return ""
         return "joystick" if isinstance(device, JoystickDevice) else "keyboard"
-
