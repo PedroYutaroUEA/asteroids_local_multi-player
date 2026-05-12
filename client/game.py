@@ -5,6 +5,7 @@
 """
 
 import sys
+import random
 
 import pygame as pg
 
@@ -34,6 +35,8 @@ class Game:
 
         self.clock = pg.time.Clock()
         self.running = True
+        self.menu_time: float = 0.0       # acumulador para animações do menu
+        self.gameover_time: float = 0.0   # acumulador para fade-in do game over
 
         self.font = pg.font.SysFont(C.FONT_NAME, C.FONT_SIZE_SMALL)
         self.big = pg.font.SysFont(C.FONT_NAME, C.FONT_SIZE_LARGE)
@@ -47,6 +50,14 @@ class Game:
         self.lobby = Lobby(self.input_manager)
         self.world = None
         self.scene = SceneState.MENU
+        self._pending_events: list = []
+
+        # Starfield estático — seed fixa garante sempre as mesmas estrelas
+        rng = random.Random(42)
+        self.stars: list[tuple[int, int, int]] = [
+            (rng.randint(0, C.WIDTH), rng.randint(0, C.HEIGHT), rng.randint(1, 3))
+            for _ in range(120)
+        ]
 
         self.sounds = load_sounds(C.SOUND_PATH)
         self.audio = AudioManager(self.sounds)
@@ -54,6 +65,10 @@ class Game:
     def run(self) -> None:
         while self.running:
             dt = self.clock.tick(C.FPS) / 1000.0
+            if self.scene == SceneState.MENU:
+                self.menu_time += dt
+            elif self.scene == SceneState.GAME_OVER:
+                self.gameover_time += dt
             self._handle_events()
             self._update(dt)
             self._draw()
@@ -61,8 +76,8 @@ class Game:
         pg.quit()
 
     def _handle_events(self) -> None:
-        events = pg.event.get()
-        for event in events:
+        self._pending_events = pg.event.get()
+        for event in self._pending_events:
             if event.type == pg.QUIT or (
                 event.type == pg.KEYDOWN and event.key == pg.K_ESCAPE
             ):
@@ -70,24 +85,28 @@ class Game:
 
             if self.scene == SceneState.MENU:
                 if event.type == pg.KEYDOWN:
+                    self.lobby.reset()
                     self.scene = SceneState.LOBBY
-
-            elif self.scene == SceneState.LOBBY:
-                # O Lobby decide quando o jogo começa
-                if self.lobby.update([event]):
-                    # INJEÇÃO DE DEPENDÊNCIA: Criamos o mundo com os IDs reais
-                    self.world = World(self.input_manager.get_player_ids())
-                    self.scene = SceneState.PLAY
+                    self._pending_events = []  # evita que a tecla vaze para lobby.update()
 
             elif self.scene == SceneState.GAME_OVER:
-                if event.type == pg.KEYDOWN:
+                if event.type == pg.KEYDOWN and event.key == pg.K_RETURN:
                     self.world.reset()
+                    self.lobby.reset()
                     self.scene = SceneState.LOBBY
+                    self._pending_events = []  # evita que o ENTER vaze para lobby.update()
 
             elif self.scene == SceneState.PLAY:
                 self.input_manager.handle_gameplay_events([event])
 
     def _update(self, dt: float) -> None:
+        # Lobby: processado uma vez por frame com dt para o countdown
+        if self.scene == SceneState.LOBBY:
+            if self.lobby.update(self._pending_events, dt):
+                self.world = World(self.input_manager.get_player_ids())
+                self.scene = SceneState.PLAY
+            return
+
         if self.scene != SceneState.PLAY:
             return
 
@@ -96,6 +115,7 @@ class Game:
 
         if self.world.game_over:
             self.audio.stop_all()
+            self.gameover_time = 0.0
             self.scene = SceneState.GAME_OVER
             return
 
@@ -112,11 +132,18 @@ class Game:
     def _draw(self) -> None:
         self.renderer.clear()
         if self.scene == SceneState.MENU:
-            self.renderer.draw_menu()
+            self.renderer.draw_menu(self.stars, self.menu_time)
         elif self.scene == SceneState.LOBBY:
             self.lobby.draw(self.screen, self.font, self.big)
         elif self.scene == SceneState.GAME_OVER:
-            self.renderer.draw_game_over()
+            self.renderer.draw_game_over(
+                scores=self.world.scores,
+                lives=self.world.lives,
+                wave=self.world.wave,
+                shots_fired=self.world.shots_fired,
+                power_use_count=self.world.power_use_count,
+                elapsed=self.gameover_time,
+            )
         elif self.scene == SceneState.PLAY:
             self.renderer.draw_world(self.world)
             self.renderer.draw_hud(
