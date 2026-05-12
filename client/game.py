@@ -147,7 +147,7 @@ class Game:
         elif self.scene == SceneState.PLAY:
             self.renderer.draw_world(self.world)
             self.renderer.draw_hud(
-                self.world.scores, self.lives_copy(), self.world.wave, self.scene
+                self.world.scores, self.lives_copy(), self.world.wave, self.scene, self.world.ships
             )
         pg.display.flip()
 

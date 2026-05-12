@@ -27,6 +27,7 @@ class World:
         self.tethers: list[tuple[C.PlayerId, C.PlayerId]] = []
 
         self.bullets = pg.sprite.Group()
+        self.time_bombs = pg.sprite.Group()
         self.asteroids = pg.sprite.Group()
         self.ufos = pg.sprite.Group()
         self.all_sprites = pg.sprite.Group()
@@ -83,12 +84,22 @@ class World:
                 self.power_use_count += 1
                 self.scores[pid] = max(0, self.scores[pid] - C.HYPERSPACE_COST)
 
-            bullet = ship.apply_command(cmd, dt, self.bullets)
-            if bullet:
-                self.bullets.add(bullet)
-                self.all_sprites.add(bullet)
-                self.shots_fired += 1
-                self.events.append("player_shoot")
+            ship.apply_command(cmd, dt)
+
+            if cmd.shoot:
+                bullet = ship._try_fire(self.bullets)
+                if bullet:
+                    self.bullets.add(bullet)
+                    self.all_sprites.add(bullet)
+                    self.shots_fired += 1
+                    self.events.append("player_shoot")
+            
+            if cmd.time_bomb:
+                time_bomb = ship._try_time_bomb(self.time_bombs)
+                if time_bomb:
+                    self.time_bombs.add(time_bomb)
+                    self.all_sprites.add(time_bomb)
+                    self.events.append("player_time_bomb")
 
     def _update_tethers(self, dt: float, commands: Dict[C.PlayerId, PlayerCommand]) -> None:
         pressing_special = []
@@ -128,7 +139,7 @@ class World:
 
     def _handle_collisions(self) -> None:
         result = self._collision_mgr.resolve(
-            self.ships, self.bullets, self.asteroids, self.ufos, self.tethers
+            self.ships, self.bullets, self.asteroids, self.ufos, self.time_bombs, self.tethers
         )
         self.events.extend(result.events)
 
@@ -173,6 +184,10 @@ class World:
         if self.ufo_timer <= 0.0:
             self.spawn_ufo()
             self.ufo_timer = float(C.UFO_SPAWN_EVERY)
+        for ship in self.ships.values():
+            ship.update_time_bomb_cooldown(dt)
+        for time_bomb in self.time_bombs:
+            time_bomb.check_explode(dt)
 
     def _maybe_start_next_wave(self, dt: float) -> None:
         if self.asteroids:
