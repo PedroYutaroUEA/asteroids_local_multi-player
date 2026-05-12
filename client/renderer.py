@@ -3,7 +3,7 @@
 import pygame as pg
 
 from core import config as C
-from core.entities import Asteroid, Bullet, Ship, UFO
+from core.entities import Asteroid, Bullet, Ship, UFO, TimeBomb
 from core.scene import SceneState
 
 
@@ -27,6 +27,7 @@ class Renderer:
             Asteroid: self._draw_asteroid,
             Ship: self._draw_ship,
             UFO: self._draw_ufo,
+            TimeBomb: self._draw_time_bomb,
         }
 
     def clear(self) -> None:
@@ -48,12 +49,12 @@ class Renderer:
             if drawer is not None:
                 drawer(sprite)
 
-    def draw_hud(self, scores: dict, lives: dict, wave: int, state: SceneState) -> None:
+    def draw_hud(self, scores: dict, lives: dict, wave: int, state: SceneState, ships: dict[int, Ship]) -> None:
         if state != SceneState.PLAY:
             return
 
         self._draw_wave_indicator(wave)
-        self._draw_player_panels(scores, lives)
+        self._draw_player_panels(scores, lives, ships)
 
     def _draw_wave_indicator(self, wave: int) -> None:
         """Renderiza o indicador de wave centralizado com fundo semi-transparente."""
@@ -75,7 +76,7 @@ class Renderer:
         )
         self.screen.blit(label, (cx + pad_x, cy + pad_y))
 
-    def _draw_player_panels(self, scores: dict, lives: dict) -> None:
+    def _draw_player_panels(self, scores: dict, lives: dict, ships: dict[int, Ship]) -> None:
         """Renderiza um painel HUD para cada jogador, posicionado dinamicamente."""
         pids = sorted(scores.keys())
         n = len(pids)
@@ -96,6 +97,10 @@ class Renderer:
         ]
 
         for idx, pid in enumerate(pids):
+            for id, player_ship in ships.items():
+                if id == pid:
+                    ship = player_ship
+                    break
             qpos = quadrant_positions[idx % 4]
             self._draw_single_player_panel(
                 pid,
@@ -104,6 +109,7 @@ class Renderer:
                 ph,
                 scores[pid],
                 lives[pid],
+                ship
             )
 
     def _draw_single_player_panel(
@@ -114,6 +120,7 @@ class Renderer:
         ph: int,
         score: int,
         life_count: int,
+        ship: Ship | None,
     ) -> None:
         """Desenha o painel completo de um jogador (barra de título + score + vidas)."""
         x, y = pos
@@ -151,6 +158,39 @@ class Renderer:
 
             # --- Ícones de vida (triângulos mini) ---
             self._draw_life_icons(x + 8, y + bar_h + 28, life_count, color)
+        
+        # --- Time Bomb Cooldown ---
+        remaining_time = max(0.0, ship.time_bomb_cooldown)
+
+        ratio = 1.0 - (remaining_time / C.TIME_BOMB_COOLDOWN)
+
+        bar_x = x+8
+        bar_y = y + bar_h + 52
+
+        bar_w = pw - 16
+        bar_h2 = 10
+
+        pg.draw.rect(
+            self.screen,
+            (40, 40, 40),
+            (bar_x, bar_y, bar_w, bar_h2),
+        )
+
+        fill_w = int(bar_w*ratio)
+        ready = remaining_time<=0
+
+        fill_color = (
+            (0, 220, 120)
+            if ready
+            else (255, 180, 0)
+        )
+
+        pg.draw.rect(
+            self.screen,
+            fill_color,
+            (bar_x, bar_y, fill_w, bar_h2),
+        )
+
 
     def _draw_life_icons(
         self, x: int, y: int, count: int, color: tuple
@@ -428,6 +468,31 @@ class Renderer:
     ) -> None:
         label = font.render(text, True, self.config.WHITE)
         self.screen.blit(label, (x, y))
+
+    def _draw_time_bomb(self, bomb: TimeBomb) -> None:
+        center = (int(bomb.pos.x), int(bomb.pos.y))
+        color = (
+            C.PLAYER_COLORS.get(bomb.owner_id, self.config.WHITE)
+            if bomb.owner_id > 0
+            else self.config.WHITE
+        )
+
+        pg.draw.circle(
+            self.screen,
+            color,
+            center,
+            bomb.r,
+            width=1,
+        )
+
+        if bomb.time_to_explode <= 0:
+            pg.draw.circle(
+                self.screen,
+                color,
+                center,
+                bomb.explosion_radius,
+                width=1,
+            )
 
     def _draw_bullet(self, bullet: Bullet) -> None:
         center = (int(bullet.pos.x), int(bullet.pos.y))

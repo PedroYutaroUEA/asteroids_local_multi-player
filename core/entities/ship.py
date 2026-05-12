@@ -6,6 +6,7 @@ import pygame as pg
 
 from core import config as C
 from core.commands import PlayerCommand
+from core.entities.time_bomb import TimeBomb
 from core.utils import Vec, angle_to_vec, wrap_pos
 from .base import Entity
 from .bullet import Bullet
@@ -27,13 +28,16 @@ class Ship(Entity):
         self.angle = -90.0
         self.cool = 0.0
         self.invuln = 0.0
+        self.time_bomb_ready = True
+        self.time_bomb_cooldown = 0.0
 
     def apply_command(
         self,
         cmd: PlayerCommand,
         dt: float,
-        bullets: pg.sprite.Group,
-    ) -> "Bullet | None":
+        bullets: pg.sprite.Group = None,
+        time_bombs: pg.sprite.Group = None,
+    ) -> "Bullet| TimeBomb | None":
         """Apply a player command for this frame, returning a new bullet if fired."""
         if cmd.rotate_left and not cmd.rotate_right:
             self.angle -= C.SHIP_TURN_SPEED * dt
@@ -44,9 +48,6 @@ class Ship(Entity):
             self.vel += angle_to_vec(self.angle) * C.SHIP_THRUST * dt
 
         self.vel *= C.SHIP_FRICTION
-
-        if cmd.shoot:
-            return self._try_fire(bullets)
 
         return None
 
@@ -94,3 +95,22 @@ class Ship(Entity):
 
         self.cool = float(C.SHIP_FIRE_RATE)
         return Bullet(self.player_id, pos, vel, ttl=C.BULLET_TTL)
+    
+    def _try_time_bomb(self, time_bombs: pg.sprite.Group) -> "TimeBomb | None":
+        if not self.time_bomb_ready:
+            return None
+
+        self.time_bomb_ready = False
+        self.time_bomb_cooldown = float(C.TIME_BOMB_COOLDOWN)
+
+        dirv = angle_to_vec(self.angle)
+        pos = self.pos + dirv * (self.r + C.BULLET_SPAWN_OFFSET)
+        vel = self.vel + dirv * C.TIME_BOMB_SPEED
+
+        return TimeBomb(self.player_id, pos, vel, ttl=C.TIME_BOMB_TTL)
+    
+    def update_time_bomb_cooldown(self, dt: float) -> None:
+        if not self.time_bomb_ready:
+            self.time_bomb_cooldown = max(0.0, self.time_bomb_cooldown - dt)
+            if self.time_bomb_cooldown <= 0.0:
+                self.time_bomb_ready = True

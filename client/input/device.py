@@ -7,7 +7,7 @@ class InputDevice(ABC):
     """Interface abstrata para qualquer dispositivo de entrada."""
 
     def __init__(self):
-        self.trigger_states = {"shoot": False, "hyperspace": False}
+        self.trigger_states = {"shoot": False, "hyperspace": False, "time_bomb": False}
 
     @abstractmethod
     def handle_event(self, event: pg.event.Event) -> None:

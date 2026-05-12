@@ -47,12 +47,10 @@ class InputManager:
                         pid = int(profile_name[-1])  # P1 -> 1, P2 -> 2
                         if pid not in self.devices:
                             self.devices[pid] = KeyboardDevice(mapping)
-                            print(self.devices)
 
             # Entrada por Joystick
             if event.type == pg.JOYBUTTONDOWN:
                 if event.joy not in self.active_joystick_ids:
-                    print(f"event.joy: {event.joy}")
                     pid = self._get_next_available_id()
                     if pid:
                         joy = pg.joystick.Joystick(event.joy)
@@ -74,7 +72,6 @@ class InputManager:
 
         print(f"Assigning {name} to Player {player_id} using {profile_name}.")
         self.devices[player_id] = JoystickDevice(joystick, profile)
-        print(self.devices)
 
     def handle_gameplay_events(self, events: list[pg.event.Event]):
         """Roteia eventos discretos para cada dispositivo ativo."""
