@@ -27,6 +27,7 @@ class Game:
             C.AUDIO_FREQUENCY, C.AUDIO_SIZE, C.AUDIO_CHANNELS, C.AUDIO_BUFFER
         )
         pg.init()
+        pg.joystick.init()
         pg.mixer.init()
 
         self.screen = pg.display.set_mode((C.WIDTH, C.HEIGHT))

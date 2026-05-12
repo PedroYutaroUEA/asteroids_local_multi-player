@@ -4,6 +4,7 @@ from client.input.keyboard import KeyboardDevice
 
 from client.input.profiles import (
     JOYSTICK_XBOX,
+    JOYSTICK_PLAYSTATION,
     KEYBOARD_PROFILES,
     JOYSTICK_GENERIC,
 )
@@ -19,10 +20,20 @@ class InputManager:
         self.devices: dict[C.PlayerId, InputDevice] = {}
         self.active_joystick_ids = set()
 
+        self.joysticks = []
+
+        for i in range(pg.joystick.get_count()):
+            joy = pg.joystick.Joystick(i)
+            joy.init()
+
+            self.joysticks.append(joy)
+
+            print(f"[JOYSTICK] Detectado: {joy.get_name()}")
+
     def _get_next_available_id(self) -> int:
         """Encontra o menor ID de 1 a 4 que não está em uso."""
         for i in range(1, C.MAX_PLAYERS + 1):
-            if i not in self.devices:
+            if i not in self.devices and i > 2:
                 return i
         return None
 
@@ -36,10 +47,12 @@ class InputManager:
                         pid = int(profile_name[-1])  # P1 -> 1, P2 -> 2
                         if pid not in self.devices:
                             self.devices[pid] = KeyboardDevice(mapping)
+                            print(self.devices)
 
             # Entrada por Joystick
             if event.type == pg.JOYBUTTONDOWN:
                 if event.joy not in self.active_joystick_ids:
+                    print(f"event.joy: {event.joy}")
                     pid = self._get_next_available_id()
                     if pid:
                         joy = pg.joystick.Joystick(event.joy)
@@ -51,11 +64,17 @@ class InputManager:
         name = joystick.get_name().lower()
         if "xbox" in name or "x-input" in name:
             profile = JOYSTICK_XBOX
+            profile_name = "JOYSTICK_XBOX"
+        elif "ps4" in name or "dualshock" in name or "dualsense" in name or "wireless" in name:
+            profile = JOYSTICK_PLAYSTATION
+            profile_name = "JOYSTICK_PLAYSTATION"
         else:
             profile = JOYSTICK_GENERIC
+            profile_name = "JOYSTICK_GENERIC"
 
-        print(f"Assigning {name} to Player {player_id} using generic profile.")
+        print(f"Assigning {name} to Player {player_id} using {profile_name}.")
         self.devices[player_id] = JoystickDevice(joystick, profile)
+        print(self.devices)
 
     def handle_gameplay_events(self, events: list[pg.event.Event]):
         """Roteia eventos discretos para cada dispositivo ativo."""
