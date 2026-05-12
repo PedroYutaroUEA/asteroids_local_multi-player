@@ -4,7 +4,7 @@ from client.input.keyboard import KeyboardDevice
 
 from client.input.profiles import (
     JOYSTICK_XBOX,
-    JOYSTICK_PS4,
+    JOYSTICK_PLAYSTATION,
     KEYBOARD_PROFILES,
     JOYSTICK_GENERIC,
 )
@@ -64,14 +64,15 @@ class InputManager:
         name = joystick.get_name().lower()
         if "xbox" in name or "x-input" in name:
             profile = JOYSTICK_XBOX
-        elif "ps4" in name or "dualshock" in name or "wireless" in name:
-            profile = JOYSTICK_PS4
+            profile_name = "JOYSTICK_XBOX"
+        elif "ps4" in name or "dualshock" in name or "dualsense" in name or "wireless" in name:
+            profile = JOYSTICK_PLAYSTATION
+            profile_name = "JOYSTICK_PLAYSTATION"
         else:
             profile = JOYSTICK_GENERIC
+            profile_name = "JOYSTICK_GENERIC"
 
-        print(
-            f"Assigning {name} to Player {player_id} using {profile.__name__ if hasattr(profile, '__name__') else 'generic'} profile."
-        )
+        print(f"Assigning {name} to Player {player_id} using {profile_name}.")
         self.devices[player_id] = JoystickDevice(joystick, profile)
         print(self.devices)
 

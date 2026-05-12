@@ -34,12 +34,15 @@ JOYSTICK_XBOX = {
     },
 }
 
-JOYSTICK_PS4 = {
-    "axes": {0: {"neg": "rotate_left", "pos": "rotate_right"}},
+# Perfil unificado para PS4 (DualShock 4) e PS5 (DualSense) — mapeamento SDL2 idêntico
+JOYSTICK_PLAYSTATION = {
+    "axes": {
+        0: {"neg": "rotate_left", "pos": "rotate_right"},  # Analógico esquerdo X
+        5: {"pos": "thrust"},  # R2 (gatilho direito analógico)
+    },
     "buttons": {
         0: "shoot",  # Cross (X)
         1: "hyperspace",  # Circle (O)
-        10: "thrust",  # R1 (botão superior direito)
     },
 }
 
