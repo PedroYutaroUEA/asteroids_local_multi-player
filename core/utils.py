@@ -11,6 +11,9 @@ from core import config as C
 Vec = pg.math.Vector2
 
 
+# --- Matemática e Lógica ---
+
+
 def wrap_pos(pos: Vec) -> Vec:
     return Vec(pos.x % C.WIDTH, pos.y % C.HEIGHT)
 
@@ -18,6 +21,17 @@ def wrap_pos(pos: Vec) -> Vec:
 def angle_to_vec(deg: float) -> Vec:
     rad = math.radians(deg)
     return Vec(math.cos(rad), math.sin(rad))
+
+
+def circles_collide(p1: Vec, r1: float, p2: Vec, r2: float) -> bool:
+    """Verifica colisão entre dois círculos."""
+    return (p1 - p2).length_squared() < (r1 + r2) ** 2
+
+
+def reflect_vector(velocity: Vec, pos: Vec, target_pos: Vec) -> Vec:
+    """Calcula o vetor de reflexão contra um alvo circular."""
+    normal = (pos - target_pos).normalize()
+    return velocity - (normal * (2 * velocity.dot(normal)))
 
 
 def rand_unit_vec() -> Vec:
@@ -35,21 +49,23 @@ def rand_edge_pos() -> Vec:
     return Vec(x, y)
 
 
-def draw_poly(surface: pg.Surface, pts: Iterable[Vec]) -> None:
-    points = [(int(p.x), int(p.y)) for p in pts]
-    pg.draw.polygon(surface, C.WHITE, points, width=1)
+# --- Desenho Otimizado ---
 
 
-def draw_circle(surface: pg.Surface, pos: Vec, r: int) -> None:
-    pg.draw.circle(surface, C.WHITE, (int(pos.x), int(pos.y)), r, width=1)
-
-
-def draw_text(
-    surface: pg.Surface,
-    font: pg.font.Font,
-    text: str,
-    x: int,
-    y: int,
+def draw_circle(
+    surface: pg.Surface, pos: Vec, r: int, color: tuple = C.WHITE, width: int = 1
 ) -> None:
-    label = font.render(text, True, C.WHITE)
-    surface.blit(label, (x, y))
+    """Desenha um circulo genérico"""
+    pg.draw.circle(surface, color, (int(pos.x), int(pos.y)), int(r), width)
+
+
+def draw_poly(
+    surface: pg.Surface,
+    center: Vec,
+    points: Iterable[Vec],
+    color: tuple = C.WHITE,
+    width: int = 1,
+) -> None:
+    """Desenha um polígono rotacionado ou deslocado baseado em um centro."""
+    abs_points = [(int(center.x + p.x), int(center.y + p.y)) for p in points]
+    pg.draw.polygon(surface, color, abs_points, width)

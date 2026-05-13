@@ -100,7 +100,7 @@ class World:
                     self.events.append("player_shoot")
 
             if cmd.time_bomb:
-                time_bomb = ship.try_time_bomb(self.time_bombs)
+                time_bomb = ship.try_time_bomb()
                 if time_bomb:
                     self.time_bombs.add(time_bomb)
                     self.all_sprites.add(time_bomb)

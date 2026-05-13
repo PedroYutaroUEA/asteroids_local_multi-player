@@ -36,8 +36,6 @@ class Ship(Entity):
         self,
         cmd: PlayerCommand,
         dt: float,
-        bullets: pg.sprite.Group = None,
-        time_bombs: pg.sprite.Group = None,
     ) -> "Bullet| TimeBomb | None":
         """Apply a player command for this frame, returning a new bullet if fired."""
         if cmd.rotate_left and not cmd.rotate_right:
@@ -111,7 +109,7 @@ class Ship(Entity):
             ttl=C.BULLET_TTL,
         )
 
-    def try_time_bomb(self, time_bombs: pg.sprite.Group) -> "TimeBomb | None":
+    def try_time_bomb(self) -> "TimeBomb | None":
         if not self.time_bomb_ready:
             return None
 
