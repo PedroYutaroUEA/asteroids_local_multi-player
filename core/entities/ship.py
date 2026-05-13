@@ -21,15 +21,16 @@ class Ship(Entity):
     def __init__(self, player_id: C.PlayerId, pos: Vec) -> None:
         self.r = int(C.SHIP_RADIUS)
         super().__init__()
-
-        self.player_id = player_id
         self.pos = Vec(pos)
         self.vel = Vec(0, 0)
         self.angle = -90.0
+        self.player_id = player_id
+
         self.cool = 0.0
         self.invuln = 0.0
         self.time_bomb_ready = True
         self.time_bomb_cooldown = 0.0
+        self.ricochet_timer = 0.0
 
     def apply_command(
         self,
@@ -75,6 +76,9 @@ class Ship(Entity):
         if self.invuln > 0.0:
             self.invuln = max(0.0, self.invuln - dt)
 
+        if self.ricochet_timer > 0.0:
+            self.ricochet_timer = max(0.0, self.ricochet_timer - dt)
+
         self.pos += self.vel * dt
         self.pos = wrap_pos(self.pos)
         self._sync_rect()
@@ -94,7 +98,18 @@ class Ship(Entity):
         vel = self.vel + dirv * C.SHIP_BULLET_SPEED
 
         self.cool = float(C.SHIP_FIRE_RATE)
-        return Bullet(self.player_id, pos, vel, ttl=C.BULLET_TTL)
+
+        can_ricohcet = self.ricochet_timer > 0
+        radius = C.RICOCHET_BULLET_RADIUS if can_ricohcet else C.BULLET_RADIUS
+
+        return Bullet(
+            self.player_id,
+            pos,
+            vel,
+            r=radius,
+            can_ricochet=can_ricohcet,
+            ttl=C.BULLET_TTL,
+        )
 
     def try_time_bomb(self, time_bombs: pg.sprite.Group) -> "TimeBomb | None":
         if not self.time_bomb_ready:

@@ -7,6 +7,7 @@ from core import config as C
 from core.collisions import CollisionManager
 from core.commands import PlayerCommand
 from core.entities import Asteroid, Ship, UFO
+from core.entities.powerup import PowerUp
 from core.utils import Vec, rand_edge_pos
 
 
@@ -16,8 +17,6 @@ class World:
         self.tethers: list[tuple[C.PlayerId, C.PlayerId]] = []
         self.game_over = False
         self.ufo_timer = float(C.UFO_SPAWN_EVERY)
-        self.wave_cool = float(C.WAVE_DELAY)
-
         self._init_state()
 
     def _init_state(self) -> None:
@@ -34,14 +33,14 @@ class World:
         self.time_bombs = pg.sprite.Group()
         self.asteroids = pg.sprite.Group()
         self.ufos = pg.sprite.Group()
+        self.powerups = pg.sprite.Group()
+
         self.all_sprites = pg.sprite.Group()
 
         self.wave = 0
         self.wave_cool = float(C.WAVE_DELAY)
-        self.ufo_timer = float(C.UFO_SPAWN_EVERY)
         self.events: list[str] = []
         self._collision_mgr = CollisionManager()
-        self.game_over = False
 
         for pid in self.active_player_ids:
             self.spawn_player(pid)
@@ -68,7 +67,9 @@ class World:
 
         self._apply_players_commands(dt, commands)
         self._update_tethers(dt, commands)
+
         self.all_sprites.update(dt)
+
         self._update_ufos(dt)
         self._update_timers(dt)
         self._handle_collisions()
@@ -153,8 +154,22 @@ class World:
             self.ufos,
             self.time_bombs,
             self.tethers,
+            self.powerups,
         )
         self.events.extend(result.events)
+
+        # Spawn de PowerUps solicitados pelo Manager
+        for pos in result.powerups_to_spawn:
+            pu = PowerUp(pos, kind="RICOCHET")
+            self.powerups.add(pu)
+            self.all_sprites.add(pu)
+
+        # Aplica o efeito na nave que coletou
+        for player_id, kind in result.collected_powerups.items():
+            ship = self.ships.get(player_id)
+            if ship:
+                if kind == "RICOCHET":
+                    ship.ricochet_timer = float(getattr(C, "RICOCHET_DURATION", 15.0))
 
         # Aplica ganhos de pontos (incluindo abates PVP)
         for player_id, delta in result.score_deltas.items():
@@ -196,6 +211,7 @@ class World:
         self.ufo_timer -= dt
         if self.ufo_timer <= 0.0:
             self.spawn_ufo()
+            self.ufo_timer = float(C.UFO_SPAWN_EVERY)
 
         for ship in self.ships.values():
             ship.update_time_bomb_cooldown(dt)
@@ -239,11 +255,29 @@ class World:
         self.all_sprites.add(ast)
 
     def spawn_ufo(self) -> None:
-        pos = rand_edge_pos()
-        target = self._get_nearest_ship_pos(pos)
-        ufo = UFO(pos, uniform(0, 1) < 0.5, target_pos=target)
-        self.ufos.add(ufo)
-        self.all_sprites.add(ufo)
+        safe_pos = None
+        for _ in range(5):  # 5 tentativas de encontrar local limpo
+            pos = rand_edge_pos()
+            # Verifica se está longe de asteroides e naves
+            too_close = any((pos - ast.pos).length() < 100 for ast in self.asteroids)
+            too_close = too_close or any(
+                (pos - ship.pos).length() < 150 for ship in self.ships.values()
+            )
+
+            if not too_close:
+                safe_pos = pos
+                break
+
+        if safe_pos:
+            ufo = UFO(
+                safe_pos,
+                uniform(0, 1) < 0.5,
+                target_pos=self._get_nearest_ship_pos(safe_pos),
+            )
+            # Garantia extra: Pequeno período de invulnerabilidade no spawn (opcional)
+            # ufo.invuln = 1.0
+            self.ufos.add(ufo)
+            self.all_sprites.add(ufo)
 
     def start_wave(self) -> None:
         self.wave += 1

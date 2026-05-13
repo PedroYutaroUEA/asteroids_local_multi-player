@@ -19,6 +19,8 @@ class CollisionResult:
     ship_deaths: list[C.PlayerId] = field(default_factory=list)
     ship_time_delayed: list[C.PlayerId] = field(default_factory=list)
     asteroids_to_spawn: list[tuple[Vec, Vec, str]] = field(default_factory=list)
+    powerups_to_spawn: list[Vec] = field(default_factory=list)
+    collected_powerups: dict[C.PlayerId, str] = field(default_factory=dict)
 
 
 class CollisionManager:
@@ -32,25 +34,48 @@ class CollisionManager:
         ufos: pg.sprite.Group,
         time_bombs: pg.sprite.Group,
         tethers: list[tuple[C.PlayerId, C.PlayerId]] = None,
+        powerups: pg.sprite.Group = None,
     ) -> CollisionResult:
         result = CollisionResult()
         tethers = tethers or []
-        # Enviroment Interactions
+        powerups = powerups or pg.sprite.Group()
+        # Bullet X Objects
         self._bullets_vs_asteroids(bullets, asteroids, result)
-        self._ufo_vs_player_bullets(ufos, bullets, result)
+        self._bullets_vs_time_bombs(bullets, time_bombs, result)
+
+        # 2. Balas vs Entidades Ativas (UFO e Jogadores)
+        self._bullets_vs_ufos(bullets, ufos, result)  # Unificado: Player e UFO bullets
+        self._bullets_vs_ships(bullets, ships, result)  #
+
+        # Physics Interactions
         self._ufo_vs_asteroids(ufos, asteroids, result)
-        # Players Interactions
         self._ship_vs_asteroids(ships, asteroids, result)
-        self._ship_vs_ufo_bullets(ships, bullets, result)
-        self._ship_vs_player_bullets(ships, bullets, result)
         self._ship_vs_ship(ships, result)
+        self._ship_vs_powerups(ships, powerups, result)
+
+        # 4. Mecânicas Especiais
         self._tether_vs_asteroids(tethers, ships, asteroids, result)
         self._tether_vs_ufos(tethers, ships, ufos, result)
         self._ship_vs_time_bombs(ships, time_bombs, result)
-        self._asteroid_vs_time_bombs(asteroids, time_bombs, result)
         self._ufo_vs_time_bombs(ufos, time_bombs, result)
-        self._bullets_vs_time_bombs(bullets, time_bombs, result)
+        self._asteroid_vs_time_bombs(asteroids, time_bombs, result)
+
         return result
+
+    def _ship_vs_powerups(
+        self,
+        ships: dict[C.PlayerId, Ship],
+        powerups: pg.sprite.Group,
+        result: CollisionResult,
+    ):
+        for ship in ships.values():
+            if not ship.alive():
+                continue
+            for pu in list(powerups):
+                if (ship.pos - pu.pos).length() < (ship.r + pu.r):
+                    result.collected_powerups[ship.player_id] = pu.kind
+                    result.events.append("powerup_collect")
+                    pu.kill()
 
     def _tether_vs_asteroids(
         self,
@@ -110,31 +135,6 @@ class CollisionManager:
 
         return (center - closest_point).length() <= r
 
-    def _ship_vs_player_bullets(
-        self,
-        ships: dict[C.PlayerId, Ship],
-        bullets: pg.sprite.Group,
-        result: CollisionResult,
-    ) -> None:
-        """Lógica de PVP: Jogador atirando em outro jogador."""
-        for ship in list(ships.values()):
-            if ship.invuln > 0.0 or not ship.alive():
-                continue
-
-            for bullet in list(bullets):
-                # Ignora tiros de UFO (tratados em outro método) e fogo amigo da própria nave
-                if bullet.owner_id <= 0 or bullet.owner_id == ship.player_id:
-                    continue
-
-                if (bullet.pos - ship.pos).length() < (bullet.r + ship.r):
-                    # O atirador ganha pontos por abater um oponente
-                    result.score_deltas[bullet.owner_id] = (
-                        result.score_deltas.get(bullet.owner_id, 0) + 500  # Score PVP
-                    )
-                    bullet.kill()
-                    result.ship_deaths.append(ship.player_id)
-                    result.events.append("ship_explosion")
-
     def _ship_vs_time_bombs(
         self,
         ships: dict[C.PlayerId, Ship],
@@ -179,29 +179,52 @@ class CollisionManager:
                     result.ship_deaths.append(pid2)
                     result.events.append("ship_explosion")
 
+    def _reflect_bullet(self, bullet, target):
+        """Calcula a reflexão física da bala contra um objeto circular."""
+        if (
+            not getattr(bullet, "can_ricochet", False)
+            or bullet.bounces >= bullet.max_bounces
+        ):
+            return False
+        # 1. Calcula o vetor normal (do centro do alvo para a bala)
+        diff = bullet.pos - target.pos
+        dist = diff.length()
+        if dist == 0:
+            return False
+        normal = diff / dist  # Vetor unitário normal
+        # 2. Reflete o vetor velocidade: v' = v - 2 * (v . n) * n
+        dot_product = bullet.vel.dot(normal)
+
+        bullet.vel = bullet.vel - (normal * (2 * dot_product))
+        # 3. Reposicionamento (Push-out) para evitar colisão no próximo frame
+        # Coloca a bala exatamente na borda do alvo + um pequeno padding
+        bullet.pos = target.pos + (normal * (target.r + bullet.r + 2))
+
+        bullet.bounces += 1
+        return True
+
     def _bullets_vs_asteroids(
         self,
         bullets: pg.sprite.Group,
         asteroids: pg.sprite.Group,
         result: CollisionResult,
     ) -> None:
-        hits = pg.sprite.groupcollide(
-            asteroids,
-            bullets,
-            False,
-            True,
-            collided=lambda a, b: (a.pos - b.pos).length() < a.r,
-        )
+        for bullet in list(bullets):
+            for ast in list(asteroids):
+                if (bullet.pos - ast.pos).length() < (bullet.r + ast.r):
+                    # Tenta refletir. Se falhar (acabou bounces), mata a bala.
+                    is_ufo_bullet = bullet.owner_id == UFO_BULLET_OWNER
 
-        for ast, hit_bullets in hits.items():
-            if any(b.owner_id == UFO_BULLET_OWNER for b in hit_bullets):
-                ast.kill()
-                result.events.append("asteroid_explosion")
-                continue
+                    if not is_ufo_bullet:
+                        if not self._reflect_bullet(bullet, ast):
+                            bullet.kill()
+                    else:
+                        bullet.kill()  # Balas de UFO nunca ricocheteiam
 
-            player_bullets = [b for b in hit_bullets if b.owner_id > 0]
-            scorer = player_bullets[0].owner_id if player_bullets else None
-            self._split_asteroid(ast, scorer_id=scorer, result=result)
+                    # O asteroide sempre quebra, mesmo com ricochete
+                    scorer = bullet.owner_id if not is_ufo_bullet else None
+                    self._split_asteroid(ast, result, scorer_id=scorer)
+                    break
 
     def _bullets_vs_time_bombs(
         self,
@@ -246,24 +269,33 @@ class CollisionManager:
                         True  # Detona a bomba mais rápido se atingida por um asteroide
                     )
 
-    def _ufo_vs_player_bullets(
-        self,
-        ufos: pg.sprite.Group,
-        bullets: pg.sprite.Group,
-        result: CollisionResult,
-    ) -> None:
-        for ufo in list(ufos):
-            for bullet in list(bullets):
-                if bullet.owner_id <= 0:
-                    continue
-                if (ufo.pos - bullet.pos).length() < (ufo.r + bullet.r):
-                    score = C.UFO_SMALL["score"] if ufo.small else C.UFO_BIG["score"]
-                    result.score_deltas[bullet.owner_id] = (
-                        result.score_deltas.get(bullet.owner_id, 0) + score
-                    )
+    def _bullets_vs_ufos(
+        self, bullets: pg.sprite.Group, ufos: pg.sprite.Group, result: CollisionResult
+    ):
+        """Trata balas atingindo o UFO (Pode ser bala de player ou fogo amigo de outro UFO)."""
+        for bullet in list(bullets):
+            if bullet.owner_id == UFO_BULLET_OWNER:
+                continue
+            for ufo in list(ufos):
+                if (bullet.pos - ufo.pos).length() < (bullet.r + ufo.r):
+                    # UFO morre
                     ufo.kill()
-                    bullet.kill()
+
+                    # Se foi um player que atirou, ele ganha pontos
+                    if bullet.owner_id > 0:
+                        score = (
+                            C.UFO_SMALL["score"] if ufo.small else C.UFO_BIG["score"]
+                        )
+                        result.score_deltas[bullet.owner_id] = (
+                            result.score_deltas.get(bullet.owner_id, 0) + score
+                        )
+
+                    # Balas que não ricocheteiam morrem ao impacto
+                    if not getattr(bullet, "can_ricochet", False):
+                        bullet.kill()
+
                     result.events.append("ship_explosion")
+                    break
 
     def _ufo_vs_time_bombs(
         self,
@@ -322,22 +354,33 @@ class CollisionManager:
                     result.events.append("ship_explosion")
                     break
 
-    def _ship_vs_ufo_bullets(
-        self,
-        ships: dict[C.PlayerId, Ship],
-        bullets: pg.sprite.Group,
-        result: CollisionResult,
-    ) -> None:
-        for ship in ships.values():
-            if ship.invuln > 0.0 or not ship.alive():
-                continue
-            for bullet in list(bullets):
-                if bullet.owner_id == UFO_BULLET_OWNER:
-                    if (bullet.pos - ship.pos).length() < (bullet.r + ship.r):
+    def _bullets_vs_ships(
+        self, bullets: pg.sprite.Group, ships: dict[int, Ship], result: CollisionResult
+    ):
+        """Trata balas (de players ou UFOs) atingindo naves de jogadores."""
+        for bullet in list(bullets):
+            for ship in ships.values():
+                if not ship.alive() or ship.invuln > 0:
+                    continue
+
+                # Regra: Não pode acertar a si mesmo (owner_id == player_id)
+                if bullet.owner_id == ship.player_id:
+                    continue
+
+                if (bullet.pos - ship.pos).length() < (bullet.r + ship.r):
+                    # Se for bala de outro player (PVP)
+                    if bullet.owner_id > 0:
+                        result.score_deltas[bullet.owner_id] = (
+                            result.score_deltas.get(bullet.owner_id, 0) + 500
+                        )
+
+                    # Se a bala não for de ricochete, ela morre
+                    if not getattr(bullet, "can_ricochet", False):
                         bullet.kill()
-                        result.ship_deaths.append(ship.player_id)
-                        result.events.append("ship_explosion")
-                        break
+
+                    result.ship_deaths.append(ship.player_id)
+                    result.events.append("ship_explosion")
+                    break
 
     def _split_asteroid(
         self,
@@ -353,6 +396,10 @@ class CollisionManager:
             result.score_deltas[scorer_id] = (
                 result.score_deltas.get(scorer_id, 0) + C.AST_SIZES[ast.size]["score"]
             )
+
+        # LÓGICA DE DROP (0.12 chance)
+        if uniform(0, 1) < C.POWERUP_DROP_CHANCE:
+            result.powerups_to_spawn.append(Vec(ast.pos))
 
         split = C.AST_SIZES[ast.size]["split"]
         pos = Vec(ast.pos)
