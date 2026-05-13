@@ -8,6 +8,8 @@ from core import config as C
 from core.entities import Asteroid, Bullet, Ship, UFO, TimeBomb
 from core.entities.powerup import PowerUp
 from core.scene import SceneState
+from core.utils import draw_circle, draw_poly
+from client.input import profiles as P
 
 
 class Renderer:
@@ -232,7 +234,6 @@ class Renderer:
         """Tela de início polida: starfield, título pulsante, guia de controles."""
 
         cx = C.WIDTH // 2
-        cy = C.HEIGHT // 2
 
         # ── Fundo de estrelas ──────────────────────────────────────────────────
         for sx, sy, sr in stars:
@@ -279,38 +280,22 @@ class Renderer:
         guide_y = div_y + 16
         label_font = pg.font.SysFont(C.FONT_NAME, 17)
 
-        sections = [
-            (
-                "TECLADO  P1",
-                (255, 255, 255),
-                [
-                    ("Mover", "← / ↑ / →"),
-                    ("Atirar", "Espaco"),
-                    ("Hiperespaco", "L Shift"),
-                    ("Entrar", 'Pressione  "1"'),
-                ],
-            ),
-            (
-                "TECLADO  P2",
-                (0, 255, 100),
-                [
-                    ("Mover", "W / A / D"),
-                    ("Atirar", "Q"),
-                    ("Hiperespaco", "E"),
-                    ("Entrar", 'Pressione  "2"'),
-                ],
-            ),
-            (
-                "CONTROLE",
-                (100, 200, 255),
-                [
-                    ("Mover", "Analogico esq."),
-                    ("Atirar", "Botao A / X"),
-                    ("Hiperespaco", "Botao B / O"),
-                    ("Entrar", "Qualquer botao"),
-                ],
-            ),
+        sections = []
+        # Teclado P1 e P2
+        for p_label, color in [("P1", (255, 255, 255)), ("P2", (0, 255, 100))]:
+            hints = P.get_keyboard_hint(p_label)
+            # Adiciona a tecla de entrada (join_key)
+            join_k = P.get_key_name(P.KEYBOARD_PROFILES[p_label]["join_key"])
+            hints.append(("Entrar", f'Tecla "{join_k}"'))
+            sections.append((f"TECLADO {p_label}", color, hints))
+        # Controle (Usa XBOX como exemplo representativo)
+        joy_hints = [
+            ("Mover", "Analógico Esq."),
+            ("Atirar", "Botão A / X"),
+            ("Bomba", "Botão X / Quad."),
+            ("Entrar", "Qualquer Botão"),
         ]
+        sections.append(("CONTROLE", (100, 200, 255), joy_hints))
 
         col_w = C.WIDTH // 3
         for col_idx, (header, hcolor, rows) in enumerate(sections):
@@ -525,56 +510,24 @@ class Renderer:
                 restart_surf, (cx - restart_surf.get_width() // 2, footer_y)
             )
 
-    def _draw_text(
-        self,
-        font: pg.font.Font,
-        text: str,
-        x: int,
-        y: int,
-    ) -> None:
-        label = font.render(text, True, self.config.WHITE)
-        self.screen.blit(label, (x, y))
-
     def _draw_time_bomb(self, bomb: TimeBomb) -> None:
-        center = (int(bomb.pos.x), int(bomb.pos.y))
         color = (
             C.PLAYER_COLORS.get(bomb.owner_id, self.config.WHITE)
             if bomb.owner_id > 0
             else self.config.WHITE
         )
 
-        pg.draw.circle(
-            self.screen,
-            color,
-            center,
-            bomb.r,
-            width=1,
-        )
-
+        draw_circle(self.screen, bomb.pos, bomb.r, color)
         if bomb.time_to_explode <= 0:
-            pg.draw.circle(
-                self.screen,
-                color,
-                center,
-                bomb.explosion_radius,
-                width=1,
-            )
+            draw_circle(self.screen, bomb.pos, bomb.explosion_radius, color)
 
     def _draw_bullet(self, bullet: Bullet) -> None:
-        center = (int(bullet.pos.x), int(bullet.pos.y))
         color = (
             C.PLAYER_COLORS.get(bullet.owner_id, self.config.WHITE)
             if bullet.owner_id > 0
             else self.config.WHITE
         )
-
-        pg.draw.circle(
-            self.screen,
-            color,
-            center,
-            bullet.r,
-            width=1,
-        )
+        draw_circle(self.screen, bullet.pos, bullet.r, color)
 
     def _draw_asteroid(self, asteroid: Asteroid) -> None:
         points = [
@@ -584,25 +537,16 @@ class Renderer:
         pg.draw.polygon(self.screen, self.config.WHITE, points, width=1)
 
     def _draw_ship(self, ship: Ship) -> None:
-        p1, p2, p3 = ship.ship_points()
-        points = [
-            (int(p1.x), int(p1.y)),
-            (int(p2.x), int(p2.y)),
-            (int(p3.x), int(p3.y)),
-        ]
         color = C.PLAYER_COLORS.get(ship.player_id, self.config.WHITE)
-        pg.draw.polygon(self.screen, color, points, width=1)
+        # Transforma pontos absolutos em relativos ao centro para usar draw_poly
+        p1, p2, p3 = ship.ship_points()
+        rel_points = [p1 - ship.pos, p2 - ship.pos, p3 - ship.pos]
+
+        draw_poly(self.screen, ship.pos, rel_points, color)
 
         # --- Arco de Invulnerabilidade ---
         if ship.invuln > 0.0 and int(ship.invuln * 10) % 2 == 0:
-            center = (int(ship.pos.x), int(ship.pos.y))
-            pg.draw.circle(
-                self.screen,
-                color,
-                center,
-                ship.r + 6,
-                width=1,
-            )
+            draw_circle(self.screen, ship.pos, ship.r + 6, color)
         # --- Arco de Duração do Ricochete ---
         if hasattr(ship, "ricochet_timer") and ship.ricochet_timer > 0:
             self._draw_power_duration_arc(ship, (57, 255, 20))
@@ -611,9 +555,6 @@ class Renderer:
         """Desenha um arco decrescente centralizado na nave com 50% de opacidade."""
         # Configurações do arco
         radius = ship.r + 12
-        rect = pg.Rect(
-            int(ship.pos.x - radius), int(ship.pos.y - radius), radius * 2, radius * 2
-        )
 
         # Cálculo do ângulo baseado no tempo restante (0 a 2*PI)
         # Assume-se C.RICOCHET_DURATION como base

@@ -1,5 +1,16 @@
 import pygame as pg
 
+# Traduções amigáveis para as ações do jogo
+ACTION_LABELS = {
+    "thrust": "Acelerar",
+    "rotate_left": "Girar Esq",
+    "rotate_right": "Girar Dir",
+    "shoot": "Atirar",
+    "time_bomb": "Bomba",
+    "hyperspace": "Hiper",
+    "special": "Especial",
+}
+
 # Mapeamento Teclado
 KEYBOARD_PROFILES = {
     "P1": {
@@ -8,7 +19,7 @@ KEYBOARD_PROFILES = {
         pg.K_RIGHT: "rotate_right",
         pg.K_SPACE: "shoot",
         pg.K_RSHIFT: "time_bomb",
-        pg.K_LSHIFT: "hyperspace",
+        pg.K_DOWN: "hyperspace",
         pg.K_LALT: "special",
         "join_key": pg.K_1,
     },
@@ -27,6 +38,7 @@ KEYBOARD_PROFILES = {
 # Mapeamento Joysticks (Normalizado)
 # Chaves: 'axes' para polling, 'buttons' para eventos
 JOYSTICK_XBOX = {
+    "name": "Xbox / X-Input",
     "axes": {
         0: {"neg": "rotate_left", "pos": "rotate_right"},  # Eixo X
         5: {"pos": "thrust"},  # Gatilho RT
@@ -42,6 +54,7 @@ JOYSTICK_XBOX = {
 
 # Perfil unificado para PS4 (DualShock 4) e PS5 (DualSense) — mapeamento SDL2 idêntico
 JOYSTICK_PLAYSTATION = {
+    "name": "PS4 / PS5",
     "axes": {
         0: {"neg": "rotate_left", "pos": "rotate_right"},  # Analógico esquerdo X
         5: {"pos": "thrust"},  # R2 (gatilho direito analógico)
@@ -56,6 +69,46 @@ JOYSTICK_PLAYSTATION = {
 }
 
 JOYSTICK_GENERIC = {
+    "name": "Genérico",
     "axes": {0: {"neg": "rotate_left", "pos": "rotate_right"}},
     "buttons": {0: "shoot", 1: "hyperspace", 2: "time_bomb", 3: "special", 5: "thrust"},
 }
+
+
+def get_key_name(key_code: int) -> str:
+    """Traduz o código da tecla para uma string legível."""
+    name = pg.key.name(key_code)
+    # Ajustes cosméticos para teclas comuns
+    mapping = {
+        "up": "↑",
+        "left": "←",
+        "right": "→",
+        "space": "Espaco",
+        "left shift": "L Shift",
+        "down": "↓",
+        "left alt": "L Alt",
+    }
+    return mapping.get(name, name.capitalize())
+
+
+def get_keyboard_hint(player_label: str) -> list[tuple[str, str]]:
+    """Gera lista de (Ação, Tecla) para o menu/lobby."""
+    profile = KEYBOARD_PROFILES.get(player_label, {})
+    hints = []
+
+    # Agrupa movimento para economizar espaço
+    move_keys = [
+        get_key_name(k)
+        for k, v in profile.items()
+        if v in ["thrust", "rotate_left", "rotate_right"]
+    ]
+    if move_keys:
+        hints.append(("Mover", "|".join(move_keys[:3])))
+
+    # Adiciona ações principais
+    for action in ["shoot", "time_bomb", "hyperspace"]:
+        for k, v in profile.items():
+            if v == action:
+                hints.append((ACTION_LABELS[action], get_key_name(k)))
+
+    return hints

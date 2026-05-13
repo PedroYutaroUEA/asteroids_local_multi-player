@@ -13,12 +13,7 @@ import pygame as pg
 
 from core import config as C
 from client.input.manager import InputManager
-
-# Mapeamento: nome do perfil -> teclas exibidas no slot
-_KB_HINT: dict[int, tuple[str, str]] = {
-    1: ("Setas + Espaco", "LShift=hiper"),
-    2: ("WASD + Q", "E=hiper"),
-}
+from client.input import profiles as P
 
 # Duração (segundos) da contagem regressiva antes de iniciar
 _COUNTDOWN_DURATION = 3.0
@@ -100,8 +95,8 @@ class Lobby:
         slot_w, slot_h = 178, 148
         total_w = C.MAX_PLAYERS * slot_w + (C.MAX_PLAYERS - 1) * 18
         start_x = cx - total_w // 2
-        slot_y = 148
 
+        slot_y = 148
         for i in range(1, C.MAX_PLAYERS + 1):
             sx = start_x + (i - 1) * (slot_w + 18)
             self._draw_slot(
@@ -150,7 +145,6 @@ class Lobby:
         if is_active:
             pulse = 0.5 + 0.5 * math.sin(self.lobby_time * 4.0 + pid)
             border_w = 1 + int(pulse * 2)  # oscila entre 1 e 3 px
-            border_alpha = 160 + int(pulse * 95)  # oscila entre 160 e 255
             border_color = (
                 min(255, int(r * 0.7 + 255 * 0.3 * pulse)),
                 min(255, int(g * 0.7 + 255 * 0.3 * pulse)),
@@ -201,15 +195,17 @@ class Lobby:
         badge = label_font.render(badge_text, True, badge_color)
         screen.blit(badge, (sx + sw // 2 - badge.get_width() // 2, sy + bar_h + 8))
 
-        # Teclas de controle
-        if device_type == "keyboard" and pid in _KB_HINT:
-            line1, line2 = _KB_HINT[pid]
-            l1 = small_font.render(line1, True, (180, 180, 180))
-            l2 = small_font.render(line2, True, (140, 140, 140))
-            screen.blit(l1, (sx + sw // 2 - l1.get_width() // 2, sy + bar_h + 32))
-            screen.blit(l2, (sx + sw // 2 - l2.get_width() // 2, sy + bar_h + 50))
-        elif device_type == "joystick":
-            hint = small_font.render("Analogico + Botoes", True, (180, 180, 180))
+        if device_type == "keyboard":
+            hints = P.get_keyboard_hint(f"P{pid}")
+            hy = sy + bar_h + 32
+            for action, key in hints[:2]:  # Pega as 2 principais para não lotar o slot
+                txt = small_font.render(
+                    f"({key})=> {action.lower()}", True, (180, 180, 180)
+                )
+                screen.blit(txt, (sx + sw // 2 - txt.get_width() // 2, hy))
+                hy += 18
+        else:
+            hint = small_font.render("Analógico + Botões", True, (180, 180, 180))
             screen.blit(hint, (sx + sw // 2 - hint.get_width() // 2, sy + bar_h + 32))
 
         # Status PRONTO
@@ -233,17 +229,16 @@ class Lobby:
         """Conteúdo do slot quando nenhum jogador está conectado."""
         # Clip para garantir que nenhum texto vaze além do slot
         screen.set_clip(pg.Rect(sx + 2, sy, sw - 4, sh))
-
         empty = label_font.render("SLOT  VAZIO", True, (70, 70, 80))
         screen.blit(empty, (sx + sw // 2 - empty.get_width() // 2, sy + bar_h + 14))
 
-        # Dicas específicas por slot
-        if pid == 1:
-            hints = ['Pressione  "1"', "para entrar"]
-        elif pid == 2:
-            hints = ['Pressione  "2"', "para entrar"]
+        # Busca a join_key real do profile
+        p_key = f"P{pid}"
+        if p_key in P.KEYBOARD_PROFILES:
+            key_name = P.get_key_name(P.KEYBOARD_PROFILES[p_key]["join_key"])
+            hints = [f"Pressione '{key_name}'", "para entrar"]
         else:
-            hints = ["Conecte um controle", "e aperte um botao"]
+            hints = ["Conecte controle", "e aperte botão"]
 
         hy = sy + bar_h + 42
         for hint_line in hints:

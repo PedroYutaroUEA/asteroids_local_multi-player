@@ -47,6 +47,8 @@ class InputManager:
                         pid = int(profile_name[-1])  # P1 -> 1, P2 -> 2
                         if pid not in self.devices:
                             self.devices[pid] = KeyboardDevice(mapping)
+                        else:
+                            self.devices.pop(pid)
 
             # Entrada por Joystick
             if event.type == pg.JOYBUTTONDOWN:

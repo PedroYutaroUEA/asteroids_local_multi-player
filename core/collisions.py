@@ -7,7 +7,7 @@ import pygame as pg
 
 from core import config as C
 from core.entities import Asteroid, Ship, UFO_BULLET_OWNER
-from core.utils import Vec, rand_unit_vec
+from core.utils import Vec, circles_collide, rand_unit_vec
 
 
 @dataclass
@@ -211,7 +211,7 @@ class CollisionManager:
     ) -> None:
         for bullet in list(bullets):
             for ast in list(asteroids):
-                if (bullet.pos - ast.pos).length() < (bullet.r + ast.r):
+                if circles_collide(bullet.pos, bullet.r, ast.pos, ast.r):
                     # Tenta refletir. Se falhar (acabou bounces), mata a bala.
                     is_ufo_bullet = bullet.owner_id == UFO_BULLET_OWNER
 
@@ -360,14 +360,14 @@ class CollisionManager:
         """Trata balas (de players ou UFOs) atingindo naves de jogadores."""
         for bullet in list(bullets):
             for ship in ships.values():
-                if not ship.alive() or ship.invuln > 0:
+                if (
+                    not ship.alive()
+                    or ship.invuln > 0
+                    or (bullet.owner_id == ship.player_id)
+                ):
                     continue
 
-                # Regra: Não pode acertar a si mesmo (owner_id == player_id)
-                if bullet.owner_id == ship.player_id:
-                    continue
-
-                if (bullet.pos - ship.pos).length() < (bullet.r + ship.r):
+                if circles_collide(bullet.pos, bullet.r, ship.pos, ship.r):
                     # Se for bala de outro player (PVP)
                     if bullet.owner_id > 0:
                         result.score_deltas[bullet.owner_id] = (
