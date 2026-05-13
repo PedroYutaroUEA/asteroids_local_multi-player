@@ -37,13 +37,15 @@ class TimeBomb(Entity):
             return
 
         self._sync_rect()
-    
+
     def check_explode(self, dt: float) -> None:
         """Trigger the explosion effect, affecting nearby entities."""
         if self.time_to_explode > 0.0:
             if self.early_explosion:
                 self.exploded = True
-                self.time_to_explode = min(self.time_to_explode, 0.0)  # Detona mais rápido se já tiver sido atingida
+                self.time_to_explode = min(
+                    self.time_to_explode, 0.0
+                )  # Detona mais rápido se já tiver sido atingida
                 self.r = self.explosion_radius
                 self.vel = Vec(0, 0)
             self.time_to_explode -= dt

@@ -14,7 +14,6 @@ import pygame as pg
 from core import config as C
 from client.input.manager import InputManager
 
-
 # Mapeamento: nome do perfil -> teclas exibidas no slot
 _KB_HINT: dict[int, tuple[str, str]] = {
     1: ("Setas + Espaco", "LShift=hiper"),
@@ -33,11 +32,16 @@ class Lobby:
         self.p_colors = getattr(
             C,
             "PLAYER_COLORS",
-            {1: (255, 255, 255), 2: (0, 255, 100), 3: (100, 200, 255), 4: (255, 200, 0)},
+            {
+                1: (255, 255, 255),
+                2: (0, 255, 100),
+                3: (100, 200, 255),
+                4: (255, 200, 0),
+            },
         )
-        self.lobby_time: float = 0.0       # acumulador geral para animações
-        self._countdown: float = 0.0       # > 0 quando contagem regressiva ativa
-        self._starting: bool = False       # flag: ENTER pressionado
+        self.lobby_time: float = 0.0  # acumulador geral para animações
+        self._countdown: float = 0.0  # > 0 quando contagem regressiva ativa
+        self._starting: bool = False  # flag: ENTER pressionado
 
     # ──────────────────────────────────────────────────────────────────────────
     # Lógica
@@ -100,7 +104,18 @@ class Lobby:
 
         for i in range(1, C.MAX_PLAYERS + 1):
             sx = start_x + (i - 1) * (slot_w + 18)
-            self._draw_slot(screen, font, label_font, small_font, i, sx, slot_y, slot_w, slot_h, active_ids)
+            self._draw_slot(
+                screen,
+                font,
+                label_font,
+                small_font,
+                i,
+                sx,
+                slot_y,
+                slot_w,
+                slot_h,
+                active_ids,
+            )
 
         # ── Rodapé ────────────────────────────────────────────────────────────
         self._draw_footer(screen, font, label_font, active_ids)
@@ -134,7 +149,7 @@ class Lobby:
         # ── Borda animada (pulsante quando ativo, estática quando vazio) ───────
         if is_active:
             pulse = 0.5 + 0.5 * math.sin(self.lobby_time * 4.0 + pid)
-            border_w = 1 + int(pulse * 2)        # oscila entre 1 e 3 px
+            border_w = 1 + int(pulse * 2)  # oscila entre 1 e 3 px
             border_alpha = 160 + int(pulse * 95)  # oscila entre 160 e 255
             border_color = (
                 min(255, int(r * 0.7 + 255 * 0.3 * pulse)),
@@ -157,9 +172,13 @@ class Lobby:
         screen.blit(p_label, (sx + sw // 2 - p_label.get_width() // 2, sy + 3))
 
         if is_active:
-            self._draw_active_slot(screen, label_font, small_font, pid, sx, sy, sw, bar_h, color)
+            self._draw_active_slot(
+                screen, label_font, small_font, pid, sx, sy, sw, bar_h, color
+            )
         else:
-            self._draw_empty_slot(screen, label_font, small_font, pid, sx, sy, sw, sh, bar_h)
+            self._draw_empty_slot(
+                screen, label_font, small_font, pid, sx, sy, sw, sh, bar_h
+            )
 
     def _draw_active_slot(
         self,
@@ -234,7 +253,6 @@ class Lobby:
 
         screen.set_clip(None)  # Remove o clip após o slot
 
-
     def _draw_footer(
         self,
         screen: pg.Surface,
@@ -245,7 +263,13 @@ class Lobby:
         cx = C.WIDTH // 2
         footer_y = C.HEIGHT - 72
 
-        pg.draw.line(screen, (50, 50, 60), (cx - 280, footer_y - 10), (cx + 280, footer_y - 10), 1)
+        pg.draw.line(
+            screen,
+            (50, 50, 60),
+            (cx - 280, footer_y - 10),
+            (cx + 280, footer_y - 10),
+            1,
+        )
 
         if not active_ids:
             msg = 'Pressione  "1" (P1)  ou  "2" (P2)  ou botao do controle para entrar'
@@ -277,7 +301,10 @@ class Lobby:
             int(60 * pulse),
         )
         num_surf = big_font.render(str(secs_left), True, num_color)
-        screen.blit(num_surf, (cx - num_surf.get_width() // 2, cy - num_surf.get_height() // 2 - 20))
+        screen.blit(
+            num_surf,
+            (cx - num_surf.get_width() // 2, cy - num_surf.get_height() // 2 - 20),
+        )
 
         start_font = pg.font.SysFont(C.FONT_NAME, 22)
         msg = start_font.render("INICIANDO...", True, (200, 200, 200))

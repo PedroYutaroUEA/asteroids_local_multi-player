@@ -1,9 +1,12 @@
 """Client-side rendering (pygame)."""
 
+import math
+import random
 import pygame as pg
 
 from core import config as C
 from core.entities import Asteroid, Bullet, Ship, UFO, TimeBomb
+from core.entities.powerup import PowerUp
 from core.scene import SceneState
 
 
@@ -28,6 +31,7 @@ class Renderer:
             Ship: self._draw_ship,
             UFO: self._draw_ufo,
             TimeBomb: self._draw_time_bomb,
+            PowerUp: self._draw_powerup,
         }
 
     def clear(self) -> None:
@@ -35,21 +39,34 @@ class Renderer:
 
     def draw_world(self, world: object) -> None:
         if hasattr(world, "tethers") and hasattr(world, "ships"):
-            import random
+
             for p1, p2 in world.tethers:
                 s1 = world.ships.get(p1)
                 s2 = world.ships.get(p2)
                 if s1 and s2:
                     color = (random.randint(100, 255), random.randint(100, 255), 255)
-                    pg.draw.line(self.screen, color, (int(s1.pos.x), int(s1.pos.y)), (int(s2.pos.x), int(s2.pos.y)), 3)
-                    
+                    pg.draw.line(
+                        self.screen,
+                        color,
+                        (int(s1.pos.x), int(s1.pos.y)),
+                        (int(s2.pos.x), int(s2.pos.y)),
+                        3,
+                    )
+
         sprites = getattr(world, "all_sprites", [])
         for sprite in sprites:
             drawer = self._draw_dispatch.get(type(sprite))
             if drawer is not None:
                 drawer(sprite)
 
-    def draw_hud(self, scores: dict, lives: dict, wave: int, state: SceneState, ships: dict[int, Ship]) -> None:
+    def draw_hud(
+        self,
+        scores: dict,
+        lives: dict,
+        wave: int,
+        state: SceneState,
+        ships: dict[int, Ship],
+    ) -> None:
         if state != SceneState.PLAY:
             return
 
@@ -76,7 +93,9 @@ class Renderer:
         )
         self.screen.blit(label, (cx + pad_x, cy + pad_y))
 
-    def _draw_player_panels(self, scores: dict, lives: dict, ships: dict[int, Ship]) -> None:
+    def _draw_player_panels(
+        self, scores: dict, lives: dict, ships: dict[int, Ship]
+    ) -> None:
         """Renderiza um painel HUD para cada jogador, posicionado dinamicamente."""
         pids = sorted(scores.keys())
         n = len(pids)
@@ -84,32 +103,23 @@ class Renderer:
             return
 
         # Dimensões do painel — fixas mas proporcionais à tela
-        pw = max(160, C.WIDTH // 6)   # largura do painel
-        ph = 72                        # altura do painel
-        margin = 10                    # afastamento das bordas
+        pw = max(160, C.WIDTH // 6)  # largura do painel
+        ph = 72  # altura do painel
+        margin = 10  # afastamento das bordas
 
         # Quadrantes: sempre usa os 4 cantos, independente de quantos jogadores
         quadrant_positions = [
-            (margin, margin),                          # top-left
-            (C.WIDTH - pw - margin, margin),           # top-right
-            (margin, C.HEIGHT - ph - margin),          # bottom-left
+            (margin, margin),  # top-left
+            (C.WIDTH - pw - margin, margin),  # top-right
+            (margin, C.HEIGHT - ph - margin),  # bottom-left
             (C.WIDTH - pw - margin, C.HEIGHT - ph - margin),  # bottom-right
         ]
 
         for idx, pid in enumerate(pids):
-            for id, player_ship in ships.items():
-                if id == pid:
-                    ship = player_ship
-                    break
+            ship = ships.get(pid)
             qpos = quadrant_positions[idx % 4]
             self._draw_single_player_panel(
-                pid,
-                qpos,
-                pw,
-                ph,
-                scores[pid],
-                lives[pid],
-                ship
+                pid, qpos, pw, ph, scores[pid], lives[pid], ship
             )
 
     def _draw_single_player_panel(
@@ -155,46 +165,29 @@ class Renderer:
             # --- Score ---
             score_label = self.font.render(f"{score:07d}", True, self.config.WHITE)
             self.screen.blit(score_label, (x + 8, y + bar_h + 4))
-
             # --- Ícones de vida (triângulos mini) ---
             self._draw_life_icons(x + 8, y + bar_h + 28, life_count, color)
-        
+
         # --- Time Bomb Cooldown ---
-        remaining_time = max(0.0, ship.time_bomb_cooldown)
+        if ship:
+            self._draw_cooldown_bar(
+                x + 8,
+                y + ph - 12,
+                pw - 16,
+                6,
+                ship.time_bomb_cooldown,
+                C.TIME_BOMB_COOLDOWN,
+            )
 
-        ratio = 1.0 - (remaining_time / C.TIME_BOMB_COOLDOWN)
+    def _draw_cooldown_bar(self, x, y, w, h, current, max_val):
+        """Barra de progresso genérica para cooldowns no painel."""
+        ratio = 1.0 - (current / max_val)
+        pg.draw.rect(self.screen, (40, 40, 40), (x, y, w, h))
+        fill_w = int(w * ratio)
+        fill_color = (0, 220, 120) if current <= 0 else (255, 180, 0)
+        pg.draw.rect(self.screen, fill_color, (x, y, fill_w, h))
 
-        bar_x = x+8
-        bar_y = y + bar_h + 52
-
-        bar_w = pw - 16
-        bar_h2 = 10
-
-        pg.draw.rect(
-            self.screen,
-            (40, 40, 40),
-            (bar_x, bar_y, bar_w, bar_h2),
-        )
-
-        fill_w = int(bar_w*ratio)
-        ready = remaining_time<=0
-
-        fill_color = (
-            (0, 220, 120)
-            if ready
-            else (255, 180, 0)
-        )
-
-        pg.draw.rect(
-            self.screen,
-            fill_color,
-            (bar_x, bar_y, fill_w, bar_h2),
-        )
-
-
-    def _draw_life_icons(
-        self, x: int, y: int, count: int, color: tuple
-    ) -> None:
+    def _draw_life_icons(self, x: int, y: int, count: int, color: tuple) -> None:
         """Desenha 'count' mini-naves (triângulos) como ícones de vida."""
         icon_w, icon_h, gap = 12, 14, 5
         for i in range(count):
@@ -205,13 +198,38 @@ class Renderer:
             right = (ix + icon_w, y + icon_h)
             pg.draw.polygon(self.screen, color, [tip, left, right], 1)
 
+    def _draw_powerup(self, powerup: PowerUp) -> None:
+        """Renderiza o powerup coletável no mapa."""
+        pos = (int(powerup.pos.x), int(powerup.pos.y))
+
+        # Cor neon para o ricochete (baseado em C.RICOCHET_COLOR se existir, ou verde)
+        color = (57, 255, 20)
+
+        # Desenha um losango pulsante
+        pulse = 1.0 + 0.15 * math.sin(pg.time.get_ticks() * 0.005)
+        r = int(powerup.r * pulse)
+
+        points = [
+            (pos[0], pos[1] - r),
+            (pos[0] + r, pos[1]),
+            (pos[0], pos[1] + r),
+            (pos[0] - r, pos[1]),
+        ]
+
+        # Brilho externo
+        pg.draw.polygon(self.screen, (color[0], color[1], color[2], 100), points, 2)
+        # Ícone/Texto interno
+        label = self.font.render("R", True, color)
+        self.screen.blit(
+            label, (pos[0] - label.get_width() // 2, pos[1] - label.get_height() // 2)
+        )
+
     def draw_menu(
         self,
         stars: list[tuple[int, int, int]],
         menu_time: float = 0.0,
     ) -> None:
         """Tela de início polida: starfield, título pulsante, guia de controles."""
-        import math
 
         cx = C.WIDTH // 2
         cy = C.HEIGHT // 2
@@ -219,7 +237,9 @@ class Renderer:
         # ── Fundo de estrelas ──────────────────────────────────────────────────
         for sx, sy, sr in stars:
             brightness = 120 + int(40 * math.sin(menu_time * 0.7 + sx * 0.05))
-            pg.draw.circle(self.screen, (brightness, brightness, brightness), (sx, sy), sr)
+            pg.draw.circle(
+                self.screen, (brightness, brightness, brightness), (sx, sy), sr
+            )
 
         # ── Título "ASTEROIDS" com efeito de brilho pulsante ──────────────────
         # Pulsa suavemente entre 80 % e 100 % de intensidade
@@ -247,7 +267,9 @@ class Renderer:
         # ── Subtítulo ─────────────────────────────────────────────────────────
         sub_font = pg.font.SysFont(C.FONT_NAME, 20)
         sub_surf = sub_font.render("LOCAL  MULTIPLAYER", True, (160, 200, 255))
-        self.screen.blit(sub_surf, (cx - sub_surf.get_width() // 2, ty + title_surf.get_height() + 6))
+        self.screen.blit(
+            sub_surf, (cx - sub_surf.get_width() // 2, ty + title_surf.get_height() + 6)
+        )
 
         # ── Divisor ───────────────────────────────────────────────────────────
         div_y = ty + title_surf.get_height() + 38
@@ -258,24 +280,36 @@ class Renderer:
         label_font = pg.font.SysFont(C.FONT_NAME, 17)
 
         sections = [
-            ("TECLADO  P1", (255, 255, 255), [
-                ("Mover",      "← / ↑ / →"),
-                ("Atirar",     "Espaco"),
-                ("Hiperespaco","L Shift"),
-                ("Entrar",     'Pressione  "1"'),
-            ]),
-            ("TECLADO  P2", (0, 255, 100), [
-                ("Mover",      "W / A / D"),
-                ("Atirar",     "Q"),
-                ("Hiperespaco","E"),
-                ("Entrar",     'Pressione  "2"'),
-            ]),
-            ("CONTROLE", (100, 200, 255), [
-                ("Mover",      "Analogico esq."),
-                ("Atirar",     "Botao A / X"),
-                ("Hiperespaco","Botao B / O"),
-                ("Entrar",     "Qualquer botao"),
-            ]),
+            (
+                "TECLADO  P1",
+                (255, 255, 255),
+                [
+                    ("Mover", "← / ↑ / →"),
+                    ("Atirar", "Espaco"),
+                    ("Hiperespaco", "L Shift"),
+                    ("Entrar", 'Pressione  "1"'),
+                ],
+            ),
+            (
+                "TECLADO  P2",
+                (0, 255, 100),
+                [
+                    ("Mover", "W / A / D"),
+                    ("Atirar", "Q"),
+                    ("Hiperespaco", "E"),
+                    ("Entrar", 'Pressione  "2"'),
+                ],
+            ),
+            (
+                "CONTROLE",
+                (100, 200, 255),
+                [
+                    ("Mover", "Analogico esq."),
+                    ("Atirar", "Botao A / X"),
+                    ("Hiperespaco", "Botao B / O"),
+                    ("Entrar", "Qualquer botao"),
+                ],
+            ),
         ]
 
         col_w = C.WIDTH // 3
@@ -286,7 +320,8 @@ class Renderer:
             self.screen.blit(h_surf, (col_x - h_surf.get_width() // 2, guide_y))
             # Linha abaixo do cabeçalho
             pg.draw.line(
-                self.screen, hcolor,
+                self.screen,
+                hcolor,
                 (col_x - 90, guide_y + h_surf.get_height() + 3),
                 (col_x + 90, guide_y + h_surf.get_height() + 3),
                 1,
@@ -296,22 +331,30 @@ class Renderer:
                 act_surf = label_font.render(action + ":", True, (140, 140, 140))
                 key_surf = label_font.render(key, True, (210, 210, 210))
                 self.screen.blit(act_surf, (col_x - 88, row_y))
-                self.screen.blit(key_surf, (col_x - 88 + act_surf.get_width() + 4, row_y))
+                self.screen.blit(
+                    key_surf, (col_x - 88 + act_surf.get_width() + 4, row_y)
+                )
                 row_y += act_surf.get_height() + 4
 
         # ── Rodapé ────────────────────────────────────────────────────────────
         footer_y = C.HEIGHT - 54
-        pg.draw.line(self.screen, (60, 60, 80), (cx - 220, footer_y - 8), (cx + 220, footer_y - 8), 1)
+        pg.draw.line(
+            self.screen,
+            (60, 60, 80),
+            (cx - 220, footer_y - 8),
+            (cx + 220, footer_y - 8),
+            1,
+        )
 
         # Pisca o "pressione para começar" em sincronia com o pulso
         if int(menu_time * 2) % 2 == 0:
-            start_surf = self.font.render("Pressione uma tecla ou botao para comecar", True, (200, 200, 200))
+            start_surf = self.font.render(
+                "Pressione uma tecla ou botao para comecar", True, (200, 200, 200)
+            )
             self.screen.blit(start_surf, (cx - start_surf.get_width() // 2, footer_y))
 
         esc_surf = label_font.render("ESC  para sair", True, (90, 90, 90))
         self.screen.blit(esc_surf, (cx - esc_surf.get_width() // 2, footer_y + 26))
-
-
 
     def draw_game_over(
         self,
@@ -323,7 +366,6 @@ class Renderer:
         elapsed: float = 0.0,
     ) -> None:
         """Tela de fim de jogo com ranking, estatísticas e fade-in."""
-        import math
 
         scores = scores or {}
         lives = lives or {}
@@ -340,7 +382,7 @@ class Renderer:
         if content_alpha == 0:
             return
 
-        label_font  = pg.font.SysFont(C.FONT_NAME, 17)
+        label_font = pg.font.SysFont(C.FONT_NAME, 17)
         medium_font = pg.font.SysFont(C.FONT_NAME, 22)
 
         # ── Título "GAME OVER" com pulso ──────────────────────────────────────
@@ -352,7 +394,9 @@ class Renderer:
 
         sub = label_font.render(f"WAVE  {wave}  ENCERRADA", True, (140, 140, 160))
         sub.set_alpha(content_alpha)
-        self.screen.blit(sub, (cx - sub.get_width() // 2, 28 + title_surf.get_height() + 6))
+        self.screen.blit(
+            sub, (cx - sub.get_width() // 2, 28 + title_surf.get_height() + 6)
+        )
 
         # ── Divisor ───────────────────────────────────────────────────────────
         div_y = 28 + title_surf.get_height() + 34
@@ -368,9 +412,9 @@ class Renderer:
         # Ordena jogadores do maior para o menor score
         medal_labels = {1: "[1]", 2: "[2]", 3: "[3]", 4: "[4]"}
         medal_colors = {
-            1: (255, 215, 60),   # ouro
+            1: (255, 215, 60),  # ouro
             2: (200, 200, 210),  # prata
-            3: (200, 130, 80),   # bronze
+            3: (200, 130, 80),  # bronze
             4: (140, 140, 150),  # 4º
         }
 
@@ -396,17 +440,26 @@ class Renderer:
             # Medalha
             medal_surf = medium_font.render(medal_labels[rank], True, m_color)
             medal_surf.set_alpha(content_alpha)
-            self.screen.blit(medal_surf, (row_x + 10, ry + row_h // 2 - medal_surf.get_height() // 2))
+            self.screen.blit(
+                medal_surf, (row_x + 10, ry + row_h // 2 - medal_surf.get_height() // 2)
+            )
 
             # Nome do jogador
             name_surf = medium_font.render(f"PLAYER {pid}", True, player_color)
             name_surf.set_alpha(content_alpha)
-            self.screen.blit(name_surf, (row_x + 60, ry + row_h // 2 - name_surf.get_height() // 2))
+            self.screen.blit(
+                name_surf, (row_x + 60, ry + row_h // 2 - name_surf.get_height() // 2)
+            )
 
             # Score
-            score_surf = medium_font.render(f"{scores[pid]:07d}", True, self.config.WHITE)
+            score_surf = medium_font.render(
+                f"{scores[pid]:07d}", True, self.config.WHITE
+            )
             score_surf.set_alpha(content_alpha)
-            self.screen.blit(score_surf, (row_x + 260, ry + row_h // 2 - score_surf.get_height() // 2))
+            self.screen.blit(
+                score_surf,
+                (row_x + 260, ry + row_h // 2 - score_surf.get_height() // 2),
+            )
 
             # Status
             if is_eliminated:
@@ -417,21 +470,28 @@ class Renderer:
                 status_color = (80, 200, 100)
             status_surf = label_font.render(status_text, True, status_color)
             status_surf.set_alpha(content_alpha)
-            self.screen.blit(status_surf, (row_x + 420, ry + row_h // 2 - status_surf.get_height() // 2))
+            self.screen.blit(
+                status_surf,
+                (row_x + 420, ry + row_h // 2 - status_surf.get_height() // 2),
+            )
 
         # ── Estatísticas da Partida ───────────────────────────────────────────
         stats_y = rank_y + len(sorted_pids) * (row_h + 6) + 20
-        pg.draw.line(self.screen, (60, 60, 80), (cx - 300, stats_y), (cx + 300, stats_y), 1)
+        pg.draw.line(
+            self.screen, (60, 60, 80), (cx - 300, stats_y), (cx + 300, stats_y), 1
+        )
         stats_y += 12
 
-        stats_header = medium_font.render("ESTATISTICAS DA PARTIDA", True, (160, 160, 180))
+        stats_header = medium_font.render(
+            "ESTATISTICAS DA PARTIDA", True, (160, 160, 180)
+        )
         stats_header.set_alpha(content_alpha)
         self.screen.blit(stats_header, (cx - stats_header.get_width() // 2, stats_y))
         stats_y += stats_header.get_height() + 10
 
         stats = [
-            ("Wave alcancada",      str(wave)),
-            ("Tiros disparados",    str(shots_fired)),
+            ("Wave alcancada", str(wave)),
+            ("Tiros disparados", str(shots_fired)),
             ("Hiperespacos usados", str(power_use_count)),
         ]
 
@@ -448,16 +508,22 @@ class Renderer:
 
         # ── Instrução de reinício ─────────────────────────────────────────────
         footer_y = C.HEIGHT - 50
-        pg.draw.line(self.screen, (60, 60, 80), (cx - 260, footer_y - 10), (cx + 260, footer_y - 10), 1)
+        pg.draw.line(
+            self.screen,
+            (60, 60, 80),
+            (cx - 260, footer_y - 10),
+            (cx + 260, footer_y - 10),
+            1,
+        )
 
         if elapsed > 1.2 and int(elapsed * 2) % 2 == 0:
             restart_surf = self.font.render(
                 "Pressione  ENTER  para jogar novamente", True, (200, 200, 200)
             )
             restart_surf.set_alpha(content_alpha)
-            self.screen.blit(restart_surf, (cx - restart_surf.get_width() // 2, footer_y))
-
-
+            self.screen.blit(
+                restart_surf, (cx - restart_surf.get_width() // 2, footer_y)
+            )
 
     def _draw_text(
         self,
@@ -511,11 +577,10 @@ class Renderer:
         )
 
     def _draw_asteroid(self, asteroid: Asteroid) -> None:
-        points = []
-        for point in asteroid.poly:
-            px = int(asteroid.pos.x + point.x)
-            py = int(asteroid.pos.y + point.y)
-            points.append((px, py))
+        points = [
+            (int(asteroid.pos.x + p.x), int(asteroid.pos.y + p.y))
+            for p in asteroid.poly
+        ]
         pg.draw.polygon(self.screen, self.config.WHITE, points, width=1)
 
     def _draw_ship(self, ship: Ship) -> None:
@@ -528,6 +593,7 @@ class Renderer:
         color = C.PLAYER_COLORS.get(ship.player_id, self.config.WHITE)
         pg.draw.polygon(self.screen, color, points, width=1)
 
+        # --- Arco de Invulnerabilidade ---
         if ship.invuln > 0.0 and int(ship.invuln * 10) % 2 == 0:
             center = (int(ship.pos.x), int(ship.pos.y))
             pg.draw.circle(
@@ -537,6 +603,34 @@ class Renderer:
                 ship.r + 6,
                 width=1,
             )
+        # --- Arco de Duração do Ricochete ---
+        if hasattr(ship, "ricochet_timer") and ship.ricochet_timer > 0:
+            self._draw_power_duration_arc(ship, (57, 255, 20))
+
+    def _draw_power_duration_arc(self, ship: Ship, color: tuple) -> None:
+        """Desenha um arco decrescente centralizado na nave com 50% de opacidade."""
+        # Configurações do arco
+        radius = ship.r + 12
+        rect = pg.Rect(
+            int(ship.pos.x - radius), int(ship.pos.y - radius), radius * 2, radius * 2
+        )
+
+        # Cálculo do ângulo baseado no tempo restante (0 a 2*PI)
+        # Assume-se C.RICOCHET_DURATION como base
+        ratio = ship.ricochet_timer / getattr(C, "RICOCHET_DURATION", 15.0)
+        end_angle = (2 * math.pi) * ratio
+
+        # Superfície temporária para opacidade
+        arc_surf = pg.Surface((radius * 2 + 4, radius * 2 + 4), pg.SRCALPHA)
+        arc_rect = pg.Rect(2, 2, radius * 2, radius * 2)
+
+        # Desenha o arco na superfície transparente (cor com alpha 128 = 50%)
+        pg.draw.arc(arc_surf, (*color, 128), arc_rect, 0, end_angle, 3)
+
+        # Blit na tela principal
+        self.screen.blit(
+            arc_surf, (int(ship.pos.x - radius - 2), int(ship.pos.y - radius - 2))
+        )
 
     def _draw_ufo(self, ufo: UFO) -> None:
         width = ufo.r * 2

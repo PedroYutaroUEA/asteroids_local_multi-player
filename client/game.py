@@ -35,8 +35,8 @@ class Game:
 
         self.clock = pg.time.Clock()
         self.running = True
-        self.menu_time: float = 0.0       # acumulador para animações do menu
-        self.gameover_time: float = 0.0   # acumulador para fade-in do game over
+        self.menu_time: float = 0.0  # acumulador para animações do menu
+        self.gameover_time: float = 0.0  # acumulador para fade-in do game over
 
         self.font = pg.font.SysFont(C.FONT_NAME, C.FONT_SIZE_SMALL)
         self.big = pg.font.SysFont(C.FONT_NAME, C.FONT_SIZE_LARGE)
@@ -87,14 +87,18 @@ class Game:
                 if event.type == pg.KEYDOWN:
                     self.lobby.reset()
                     self.scene = SceneState.LOBBY
-                    self._pending_events = []  # evita que a tecla vaze para lobby.update()
+                    self._pending_events = (
+                        []
+                    )  # evita que a tecla vaze para lobby.update()
 
             elif self.scene == SceneState.GAME_OVER:
                 if event.type == pg.KEYDOWN and event.key == pg.K_RETURN:
                     self.world.reset()
                     self.lobby.reset()
                     self.scene = SceneState.LOBBY
-                    self._pending_events = []  # evita que o ENTER vaze para lobby.update()
+                    self._pending_events = (
+                        []
+                    )  # evita que o ENTER vaze para lobby.update()
 
             elif self.scene == SceneState.PLAY:
                 self.input_manager.handle_gameplay_events([event])
@@ -147,7 +151,11 @@ class Game:
         elif self.scene == SceneState.PLAY:
             self.renderer.draw_world(self.world)
             self.renderer.draw_hud(
-                self.world.scores, self.lives_copy(), self.world.wave, self.scene, self.world.ships
+                self.world.scores,
+                self.lives_copy(),
+                self.world.wave,
+                self.scene,
+                self.world.ships,
             )
         pg.display.flip()
 

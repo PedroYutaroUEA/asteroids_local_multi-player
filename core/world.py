@@ -7,12 +7,16 @@ from core import config as C
 from core.collisions import CollisionManager
 from core.commands import PlayerCommand
 from core.entities import Asteroid, Ship, UFO
+from core.entities.powerup import PowerUp
 from core.utils import Vec, rand_edge_pos
 
 
 class World:
     def __init__(self, player_ids: List[C.PlayerId]) -> None:
         self.active_player_ids = player_ids  # Armazena para facilitar o reset
+        self.tethers: list[tuple[C.PlayerId, C.PlayerId]] = []
+        self.game_over = False
+        self.ufo_timer = float(C.UFO_SPAWN_EVERY)
         self._init_state()
 
     def _init_state(self) -> None:
@@ -24,20 +28,19 @@ class World:
         }
         self.power_use_count = 0
         self.shots_fired = 0
-        self.tethers: list[tuple[C.PlayerId, C.PlayerId]] = []
 
         self.bullets = pg.sprite.Group()
         self.time_bombs = pg.sprite.Group()
         self.asteroids = pg.sprite.Group()
         self.ufos = pg.sprite.Group()
+        self.powerups = pg.sprite.Group()
+
         self.all_sprites = pg.sprite.Group()
 
         self.wave = 0
         self.wave_cool = float(C.WAVE_DELAY)
-        self.ufo_timer = float(C.UFO_SPAWN_EVERY)
         self.events: list[str] = []
         self._collision_mgr = CollisionManager()
-        self.game_over = False
 
         for pid in self.active_player_ids:
             self.spawn_player(pid)
@@ -64,7 +67,9 @@ class World:
 
         self._apply_players_commands(dt, commands)
         self._update_tethers(dt, commands)
+
         self.all_sprites.update(dt)
+
         self._update_ufos(dt)
         self._update_timers(dt)
         self._handle_collisions()
@@ -87,36 +92,40 @@ class World:
             ship.apply_command(cmd, dt)
 
             if cmd.shoot:
-                bullet = ship._try_fire(self.bullets)
+                bullet = ship.try_fire(self.bullets)
                 if bullet:
                     self.bullets.add(bullet)
                     self.all_sprites.add(bullet)
                     self.shots_fired += 1
                     self.events.append("player_shoot")
-            
+
             if cmd.time_bomb:
-                time_bomb = ship._try_time_bomb(self.time_bombs)
+                time_bomb = ship.try_time_bomb(self.time_bombs)
                 if time_bomb:
                     self.time_bombs.add(time_bomb)
                     self.all_sprites.add(time_bomb)
                     self.events.append("player_time_bomb")
 
-    def _update_tethers(self, dt: float, commands: Dict[C.PlayerId, PlayerCommand]) -> None:
+    def _update_tethers(
+        self, dt: float, commands: Dict[C.PlayerId, PlayerCommand]
+    ) -> None:
         pressing_special = []
         for pid, cmd in commands.items():
             ship = self.ships.get(pid)
             if ship and ship.alive() and cmd.special:
                 pressing_special.append(pid)
 
-        for i in range(len(pressing_special)):
+        for i, p1 in enumerate(pressing_special):
             for j in range(i + 1, len(pressing_special)):
-                p1, p2 = pressing_special[i], pressing_special[j]
+                p2 = pressing_special[j]
                 already_tethered = any(
                     (t[0] == p1 and t[1] == p2) or (t[0] == p2 and t[1] == p1)
                     for t in self.tethers
                 )
                 if not already_tethered:
-                    if (self.ships[p1].pos - self.ships[p2].pos).length() <= C.TETHER_MAX_DIST:
+                    if (
+                        self.ships[p1].pos - self.ships[p2].pos
+                    ).length() <= C.TETHER_MAX_DIST:
                         self.tethers.append((p1, p2))
 
         active_tethers = []
@@ -131,17 +140,36 @@ class World:
                         # Note: float cost accumulation isn't supported without adding float fields to scores.
                         # Let's subtract a probabilistic cost or keep score as integer.
                         if uniform(0, 1) < dt:
-                             cost = int(C.TETHER_SCORE_COST_PER_SEC)
-                             self.scores[p1] = max(0, self.scores[p1] - cost)
-                             self.scores[p2] = max(0, self.scores[p2] - cost)
+                            cost = int(C.TETHER_SCORE_COST_PER_SEC)
+                            self.scores[p1] = max(0, self.scores[p1] - cost)
+                            self.scores[p2] = max(0, self.scores[p2] - cost)
 
         self.tethers = active_tethers
 
     def _handle_collisions(self) -> None:
         result = self._collision_mgr.resolve(
-            self.ships, self.bullets, self.asteroids, self.ufos, self.time_bombs, self.tethers
+            self.ships,
+            self.bullets,
+            self.asteroids,
+            self.ufos,
+            self.time_bombs,
+            self.tethers,
+            self.powerups,
         )
         self.events.extend(result.events)
+
+        # Spawn de PowerUps solicitados pelo Manager
+        for pos in result.powerups_to_spawn:
+            pu = PowerUp(pos, kind="RICOCHET")
+            self.powerups.add(pu)
+            self.all_sprites.add(pu)
+
+        # Aplica o efeito na nave que coletou
+        for player_id, kind in result.collected_powerups.items():
+            ship = self.ships.get(player_id)
+            if ship:
+                if kind == "RICOCHET":
+                    ship.ricochet_timer = float(getattr(C, "RICOCHET_DURATION", 15.0))
 
         # Aplica ganhos de pontos (incluindo abates PVP)
         for player_id, delta in result.score_deltas.items():
@@ -184,6 +212,7 @@ class World:
         if self.ufo_timer <= 0.0:
             self.spawn_ufo()
             self.ufo_timer = float(C.UFO_SPAWN_EVERY)
+
         for ship in self.ships.values():
             ship.update_time_bomb_cooldown(dt)
         for time_bomb in self.time_bombs:
@@ -195,7 +224,6 @@ class World:
         self.wave_cool -= dt
         if self.wave_cool <= 0.0:
             self.start_wave()
-            self.wave_cool = float(C.WAVE_DELAY)
 
     def _get_nearest_ship_pos(self, from_pos: Vec) -> Vec | None:
         nearest = None
@@ -227,11 +255,29 @@ class World:
         self.all_sprites.add(ast)
 
     def spawn_ufo(self) -> None:
-        pos = rand_edge_pos()
-        target = self._get_nearest_ship_pos(pos)
-        ufo = UFO(pos, uniform(0, 1) < 0.5, target_pos=target)
-        self.ufos.add(ufo)
-        self.all_sprites.add(ufo)
+        safe_pos = None
+        for _ in range(5):  # 5 tentativas de encontrar local limpo
+            pos = rand_edge_pos()
+            # Verifica se está longe de asteroides e naves
+            too_close = any((pos - ast.pos).length() < 100 for ast in self.asteroids)
+            too_close = too_close or any(
+                (pos - ship.pos).length() < 150 for ship in self.ships.values()
+            )
+
+            if not too_close:
+                safe_pos = pos
+                break
+
+        if safe_pos:
+            ufo = UFO(
+                safe_pos,
+                uniform(0, 1) < 0.5,
+                target_pos=self._get_nearest_ship_pos(safe_pos),
+            )
+            # Garantia extra: Pequeno período de invulnerabilidade no spawn (opcional)
+            # ufo.invuln = 1.0
+            self.ufos.add(ufo)
+            self.all_sprites.add(ufo)
 
     def start_wave(self) -> None:
         self.wave += 1
