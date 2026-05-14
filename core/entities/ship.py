@@ -6,9 +6,10 @@ import pygame as pg
 
 from core import config as C
 from core.commands import PlayerCommand
+from core.entities.time_bomb import TimeBomb
 from core.utils import Vec, angle_to_vec, wrap_pos
 from .base import Entity
-from .bullet import Bullet, PlayerId
+from .bullet import Bullet
 
 
 class Ship(Entity):
@@ -17,23 +18,25 @@ class Ship(Entity):
     the same class can be used for local and networked players.
     """
 
-    def __init__(self, player_id: PlayerId, pos: Vec) -> None:
+    def __init__(self, player_id: C.PlayerId, pos: Vec) -> None:
         self.r = int(C.SHIP_RADIUS)
         super().__init__()
-
-        self.player_id = player_id
         self.pos = Vec(pos)
         self.vel = Vec(0, 0)
         self.angle = -90.0
+        self.player_id = player_id
+
         self.cool = 0.0
         self.invuln = 0.0
+        self.time_bomb_ready = True
+        self.time_bomb_cooldown = 0.0
+        self.ricochet_timer = 0.0
 
     def apply_command(
         self,
         cmd: PlayerCommand,
         dt: float,
-        bullets: pg.sprite.Group,
-    ) -> "Bullet | None":
+    ) -> "Bullet| TimeBomb | None":
         """Apply a player command for this frame, returning a new bullet if fired."""
         if cmd.rotate_left and not cmd.rotate_right:
             self.angle -= C.SHIP_TURN_SPEED * dt
@@ -44,9 +47,6 @@ class Ship(Entity):
             self.vel += angle_to_vec(self.angle) * C.SHIP_THRUST * dt
 
         self.vel *= C.SHIP_FRICTION
-
-        if cmd.shoot:
-            return self._try_fire(bullets)
 
         return None
 
@@ -74,11 +74,14 @@ class Ship(Entity):
         if self.invuln > 0.0:
             self.invuln = max(0.0, self.invuln - dt)
 
+        if self.ricochet_timer > 0.0:
+            self.ricochet_timer = max(0.0, self.ricochet_timer - dt)
+
         self.pos += self.vel * dt
         self.pos = wrap_pos(self.pos)
         self._sync_rect()
 
-    def _try_fire(self, bullets: pg.sprite.Group) -> "Bullet | None":
+    def try_fire(self, bullets: pg.sprite.Group) -> "Bullet | None":
         if self.cool > 0.0:
             return None
 
@@ -93,4 +96,34 @@ class Ship(Entity):
         vel = self.vel + dirv * C.SHIP_BULLET_SPEED
 
         self.cool = float(C.SHIP_FIRE_RATE)
-        return Bullet(self.player_id, pos, vel, ttl=C.BULLET_TTL)
+
+        can_ricohcet = self.ricochet_timer > 0
+        radius = C.RICOCHET_BULLET_RADIUS if can_ricohcet else C.BULLET_RADIUS
+
+        return Bullet(
+            self.player_id,
+            pos,
+            vel,
+            r=radius,
+            can_ricochet=can_ricohcet,
+            ttl=C.BULLET_TTL,
+        )
+
+    def try_time_bomb(self) -> "TimeBomb | None":
+        if not self.time_bomb_ready:
+            return None
+
+        self.time_bomb_ready = False
+        self.time_bomb_cooldown = float(C.TIME_BOMB_COOLDOWN)
+
+        dirv = angle_to_vec(self.angle)
+        pos = self.pos + dirv * (self.r + C.BULLET_SPAWN_OFFSET)
+        vel = self.vel + dirv * C.TIME_BOMB_SPEED
+
+        return TimeBomb(self.player_id, pos, vel, ttl=C.TIME_BOMB_TTL)
+
+    def update_time_bomb_cooldown(self, dt: float) -> None:
+        if not self.time_bomb_ready:
+            self.time_bomb_cooldown = max(0.0, self.time_bomb_cooldown - dt)
+            if self.time_bomb_cooldown <= 0.0:
+                self.time_bomb_ready = True

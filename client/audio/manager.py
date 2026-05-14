@@ -2,7 +2,7 @@
 
 import pygame as pg
 
-from client.audio import SoundPack
+from client.audio.pack import SoundPack
 
 
 class AudioManager:
