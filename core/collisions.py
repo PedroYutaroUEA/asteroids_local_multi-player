@@ -56,6 +56,7 @@ class CollisionManager:
         # 4. Mecânicas Especiais
         self._tether_vs_asteroids(tethers, ships, asteroids, result)
         self._tether_vs_ufos(tethers, ships, ufos, result)
+        self._tether_vs_ships(tethers, ships, result)
         self._ship_vs_time_bombs(ships, time_bombs, result)
         self._ufo_vs_time_bombs(ufos, time_bombs, result)
         self._asteroid_vs_time_bombs(asteroids, time_bombs, result)
@@ -115,6 +116,34 @@ class CollisionManager:
                     result.score_deltas[p2] = result.score_deltas.get(p2, 0) + score
                     ufo.kill()
                     result.events.append("ship_explosion")
+
+    def _tether_vs_ships(
+        self,
+        tethers: list[tuple[C.PlayerId, C.PlayerId]],
+        ships: dict[C.PlayerId, Ship],
+        result: CollisionResult,
+    ) -> None:
+        """Naves de terceiros que cruzam a corrente de plasma morrem.
+
+        As duas naves que formam o tether são imunes à própria corrente.
+        """
+        for p1, p2 in tethers:
+            s1, s2 = ships.get(p1), ships.get(p2)
+            if not s1 or not s2 or not s1.alive() or not s2.alive():
+                continue
+            for pid, ship in ships.items():
+                # As naves que formam o tether são imunes
+                if pid == p1 or pid == p2:
+                    continue
+                if not ship.alive() or ship.invuln > 0:
+                    continue
+                if self._line_intersects_circle(s1.pos, s2.pos, ship.pos, ship.r):
+                    result.ship_deaths.append(pid)
+                    result.events.append("ship_explosion")
+                    # Bônus PvP dividido entre os donos da corrente
+                    bonus = 250
+                    result.score_deltas[p1] = result.score_deltas.get(p1, 0) + bonus
+                    result.score_deltas[p2] = result.score_deltas.get(p2, 0) + bonus
 
     def _line_intersects_circle(self, p1: Vec, p2: Vec, center: Vec, r: float) -> bool:
         line_vec = p2 - p1
