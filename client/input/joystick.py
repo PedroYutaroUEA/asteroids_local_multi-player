@@ -9,12 +9,20 @@ class JoystickDevice(InputDevice):
         self.joy = joystick
         self.profile = profile
         self.deadzone = 0.2
+        self.held_states = {"special": False}
 
     def handle_event(self, event: pg.event.Event) -> None:
         if event.type == pg.JOYBUTTONDOWN and event.joy == self.joy.get_id():
             action = self.profile["buttons"].get(event.button)
             if action in self.trigger_states:
                 self.trigger_states[action] = True
+            elif action in self.held_states:
+                self.held_states[action] = True
+
+        elif event.type == pg.JOYBUTTONUP and event.joy == self.joy.get_id():
+            action = self.profile["buttons"].get(event.button)
+            if action in self.held_states:
+                self.held_states[action] = False
 
     def build_command(self) -> PlayerCommand:
         cmd_dict = {
@@ -24,6 +32,7 @@ class JoystickDevice(InputDevice):
             "shoot": self.trigger_states["shoot"],
             "time_bomb": self.trigger_states["time_bomb"],
             "hyperspace": self.trigger_states["hyperspace"],
+            "special": self.held_states["special"],
         }
         self.trigger_states["shoot"] = False
         self.trigger_states["time_bomb"] = False
