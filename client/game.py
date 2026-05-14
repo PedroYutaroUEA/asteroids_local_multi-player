@@ -84,7 +84,7 @@ class Game:
                 self._quit()
 
             if self.scene == SceneState.MENU:
-                if event.type == pg.KEYDOWN:
+                if event.type in (pg.KEYDOWN, pg.JOYBUTTONDOWN):
                     self.lobby.reset()
                     self.scene = SceneState.LOBBY
                     self._pending_events = (
